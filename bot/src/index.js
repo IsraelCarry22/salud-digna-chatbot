@@ -1,9 +1,9 @@
 import express from 'express';
 import { handleMessage } from './flows.js';
-import { citas, resumen } from './store.js';
+import { citas, resumen, olvidar } from './store.js';
 import { sendText, config } from './evolution.js';
 import { emit } from './orchestrator.js';
-import { getSession, stats } from './sessions.js';
+import { getSession, stats, borrarSesion } from './sessions.js';
 
 const app = express();
 app.use(express.json({ limit: '5mb' }));
@@ -90,6 +90,16 @@ app.post('/notify', async (req, res) => {
   if (folio && estado && citas.get(folio)) citas.update(folio, { estado });
   await responder(String(number), [text]);
   res.json({ ok: true });
+});
+
+// Olvidar a un paciente (lo usa el botón "Eliminar chat y memoria" del simulador)
+app.delete('/pacientes/:number', async (req, res) => {
+  const number = String(req.params.number).replace(/\D/g, '');
+  if (!number) return res.status(400).json({ error: 'Número inválido' });
+  borrarSesion(number);
+  const r = olvidar(number);
+  await emit('patient_forgotten', { patientId: number, ...r });
+  res.json({ ok: true, ...r });
 });
 
 app.get('/citas', (_req, res) => res.json(citas.todas()));

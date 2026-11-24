@@ -85,6 +85,35 @@ app.get('/ui/events', (req, res) => {
   });
 });
 
+// Borrar un chat: vaciar mensajes, eliminarlo de la lista u olvidar al paciente (también en el bot)
+const BOT_URL = process.env.BOT_URL || new URL(WEBHOOK_URL).origin;
+app.delete('/ui/chats/:number', async (req, res) => {
+  const number = soloNumero(req.params.number);
+  const modo = ['vaciar', 'eliminar', 'olvidar'].includes(req.query.modo) ? req.query.modo : 'eliminar';
+  if (!number) return res.status(400).json({ error: 'Número inválido' });
+
+  if (modo === 'vaciar') {
+    if (chats.has(number)) chats.get(number).messages = [];
+  } else {
+    chats.delete(number);
+  }
+
+  let memoria = null;
+  if (modo === 'olvidar') {
+    try {
+      const r = await fetch(`${BOT_URL}/pacientes/${number}`, { method: 'DELETE', signal: AbortSignal.timeout(4000) });
+      memoria = r.ok;
+    } catch (err) {
+      console.error(`[simulador] no se pudo borrar la memoria en el bot: ${err.message}`);
+      memoria = false;
+    }
+  }
+
+  const data = `data: ${JSON.stringify({ tipo: 'borrado', number, modo })}\n\n`;
+  for (const c of clientes) c.write(data);
+  res.json({ ok: true, modo, memoria });
+});
+
 // El "paciente" escribe en el teléfono virtual -> se manda al bot como webhook messages.upsert
 app.post('/ui/send', async (req, res) => {
   const number = soloNumero(req.body?.number);

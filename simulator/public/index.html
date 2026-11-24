@@ -2,51 +2,105 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Chatbot Salud Digna</title>
+<script>
+  // Aplica el tema antes de pintar la página (evita el parpadeo blanco)
+  (function () {
+    var tema = null;
+    try { tema = localStorage.getItem('tema'); } catch (e) {}
+    if (!tema) tema = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'oscuro' : 'claro';
+    document.documentElement.dataset.tema = tema;
+  })();
+</script>
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 
-<aside class="panel">
-  <h1>Teléfono virtual</h1>
-  <p class="sub">Simula pacientes escribiendo por WhatsApp al chatbot. No usa ningún teléfono ni número real: los mensajes viajan con el mismo formato de Evolution API.</p>
-  <div id="estado" class="estado">Conectando…</div>
-
-  <label for="num">Número del paciente</label>
-  <input id="num" value="5216671234567" inputmode="numeric" />
-  <label for="nom">Nombre</label>
-  <input id="nom" value="María López" />
-  <button class="btn" id="nuevo">Abrir chat con este paciente</button>
-
-  <div class="pacientes" id="pacientes"></div>
-</aside>
-
-<div class="telefono">
-  <div class="pantalla">
-    <div class="barra-estado"><span id="reloj">9:41</span><span>5G ▮▮▮ 🔋</span></div>
-    <div class="cab">
-      <div class="av">SD</div>
+<div class="app">
+  <!-- Panel de pacientes (en móvil se abre como cajón lateral) -->
+  <aside class="panel" id="panel" aria-label="Pacientes simulados">
+    <header class="panel-cab">
       <div>
-        <div class="t1">Salud Digna <small>(demo)</small></div>
-        <div class="t2" id="sub">Asistente virtual · en línea</div>
+        <h1>Teléfono virtual</h1>
+        <p class="sub">Simula pacientes escribiendo por WhatsApp. No usa ningún teléfono ni número real.</p>
       </div>
-    </div>
-    <div class="chat" id="chat"><div class="vacio">Abre un chat desde el panel izquierdo y escribe <b>hola</b>.</div></div>
-    <div class="escribiendo" id="escribiendo">escribiendo…</div>
-    <div class="menu-ubic" id="menuUbic" hidden>
-      <div class="menu-ubic-tit">Compartir ubicación</div>
-      <button type="button" data-gps>📡 Mi ubicación real (GPS del navegador)</button>
-      <button type="button" data-lat="24.8091" data-lng="-107.3940" data-nom="Culiacán">🏙️ Culiacán (demo)</button>
-      <button type="button" data-lat="20.6597" data-lng="-103.3496" data-nom="Guadalajara">🏙️ Guadalajara (demo)</button>
-      <button type="button" data-lat="19.4326" data-lng="-99.1332" data-nom="CDMX">🏙️ Ciudad de México (demo)</button>
-      <button type="button" data-lat="25.6866" data-lng="-100.3161" data-nom="Monterrey">🏙️ Monterrey (demo)</button>
-    </div>
-    <form class="entrada" id="form">
-      <button type="button" class="btn-ubic" id="btnUbic" aria-label="Compartir ubicación" title="Compartir ubicación">📍</button>
-      <input id="texto" placeholder="Mensaje" autocomplete="off" />
-      <button type="submit" aria-label="Enviar">➤</button>
+      <div class="panel-botones">
+        <button type="button" class="icono" id="btnTema" title="Cambiar tema" aria-label="Cambiar tema">🌙</button>
+        <button type="button" class="icono solo-movil" id="cerrarPanel" title="Cerrar" aria-label="Cerrar panel">✕</button>
+      </div>
+    </header>
+
+    <div id="estado" class="estado">Conectando…</div>
+
+    <form class="nuevo" id="formNuevo">
+	  <label for="num">Número del paciente</label>
+	  <input id="num" type="tel" value="+52 667 123 4567" placeholder="+52 866 123 4567"
+       inputmode="numeric" autocomplete="off" maxlength="16" />
+      <label for="nom">Nombre</label>
+      <input id="nom" value="María López" autocomplete="off" />
+      <button class="btn" type="submit">Abrir chat con este paciente</button>
     </form>
+
+    <div class="lista-tit">Chats <span id="conteo"></span></div>
+    <div class="pacientes" id="pacientes"></div>
+  </aside>
+
+  <!-- Teléfono -->
+  <main class="telefono">
+    <div class="pantalla">
+      <div class="barra-estado"><span id="reloj">9:41</span><span>5G ▮▮▮ 🔋</span></div>
+
+      <div class="cab">
+        <button type="button" class="icono solo-movil" id="abrirPanel" title="Pacientes" aria-label="Ver pacientes">☰</button>
+        <div class="av">SD</div>
+        <div class="cab-txt">
+          <div class="t1">Salud Digna <small>(demo)</small></div>
+          <div class="t2" id="sub">Asistente virtual · en línea</div>
+        </div>
+        <div class="cab-acciones">
+          <button type="button" class="icono" id="btnMenuChat" title="Opciones del chat" aria-label="Opciones del chat">⋮</button>
+          <div class="menu-flotante menu-chat" id="menuChat" hidden>
+            <button type="button" data-accion="vaciar">🧹 Vaciar mensajes</button>
+            <button type="button" data-accion="eliminar">🗑️ Eliminar chat</button>
+            <button type="button" data-accion="olvidar">🧠 Eliminar chat y memoria del bot</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="chat" id="chat"></div>
+      <div class="escribiendo" id="escribiendo">escribiendo…</div>
+
+      <div class="menu-flotante menu-ubic" id="menuUbic" hidden>
+        <div class="menu-tit">Compartir ubicación</div>
+        <button type="button" data-gps>📡 Mi ubicación real (GPS del navegador)</button>
+        <button type="button" data-lat="24.8091" data-lng="-107.3940" data-nom="Culiacán">🏙️ Culiacán (demo)</button>
+        <button type="button" data-lat="20.6597" data-lng="-103.3496" data-nom="Guadalajara">🏙️ Guadalajara (demo)</button>
+        <button type="button" data-lat="19.4326" data-lng="-99.1332" data-nom="CDMX">🏙️ Ciudad de México (demo)</button>
+        <button type="button" data-lat="25.6866" data-lng="-100.3161" data-nom="Monterrey">🏙️ Monterrey (demo)</button>
+      </div>
+
+      <form class="entrada" id="form">
+        <button type="button" class="btn-ubic" id="btnUbic" aria-label="Compartir ubicación" title="Compartir ubicación">📍</button>
+        <input id="texto" placeholder="Mensaje" autocomplete="off" />
+        <button type="submit" class="btn-enviar" aria-label="Enviar">➤</button>
+      </form>
+    </div>
+  </main>
+</div>
+
+<!-- Fondo oscuro detrás del cajón en móvil -->
+<div class="velo" id="velo" hidden></div>
+
+<!-- Confirmación para borrar -->
+<div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modalTit">
+  <div class="modal-caja">
+    <h2 id="modalTit">¿Eliminar chat?</h2>
+    <p id="modalTxt"></p>
+    <div class="modal-btns">
+      <button type="button" class="btn-sec" id="modalNo">Cancelar</button>
+      <button type="button" class="btn-peligro" id="modalSi">Eliminar</button>
+    </div>
   </div>
 </div>
 

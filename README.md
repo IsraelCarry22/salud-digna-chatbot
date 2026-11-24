@@ -78,7 +78,11 @@ En el panel izquierdo puedes crear varios pacientes (números distintos) para si
 | **Emergencias** | "dolor de pecho", "no puedo respirar", etc. → indica llamar al 911 y manda alerta `emergency_flag` al orquestador |
 | **Agente humano** | Handoff con confirmación al paciente; el call center contesta con `POST /agent/reply` |
 
-En el teléfono virtual, el botón **📍** comparte la ubicación real del navegador (GPS) o una ciudad demo.
+En el teléfono virtual:
+- **⋮** en el encabezado del chat: *Vaciar mensajes*, *Eliminar chat* o *Eliminar chat y memoria del bot* (borra perfil y citas del paciente con `DELETE /pacientes/:numero`; útil para repetir una demo desde cero). También hay un 🗑️ en cada chat de la lista.
+- **🌙 / ☀️** cambia entre modo claro y oscuro (se recuerda en el navegador).
+- Es responsivo: en celular el teléfono ocupa toda la pantalla y la lista de pacientes se abre con **☰**. La página no se estira: el chat y la lista se desplazan por dentro.
+- El botón **📍** comparte la ubicación real del navegador (GPS) o una ciudad demo.
 
 **Datos:** los enlaces de `LINKS` en `bot/src/data.js` son los públicos de Salud Digna (verifícalos antes de presentar). Precios, sucursales, coordenadas y horarios son **simulados**.
 

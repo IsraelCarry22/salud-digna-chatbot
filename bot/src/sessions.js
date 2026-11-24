@@ -22,6 +22,10 @@ export function reset(session, step = 'menu') {
   session.errores = 0;
 }
 
+export function borrarSesion(number) {
+  sessions.delete(number);
+}
+
 export function stats() {
   const porPaso = {};
   for (const s of sessions.values()) porPaso[s.step] = (porPaso[s.step] || 0) + 1;

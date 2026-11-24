@@ -1,60 +1,314 @@
-:root {
---verde: #008069; --verde-osc: #005c4b; --burbuja-yo: #d9fdd3; --fondo-chat: #efeae2;
---texto: #111b21; --gris: #667781; --borde: #e9edef;
-}
-* { box-sizing: border-box; }
-body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #d1d7db; color: var(--texto);
-	min-height: 100vh; display: flex; align-items: center; justify-content: center; gap: 28px; padding: 24px; flex-wrap: wrap; }
-.panel { width: 300px; background: #fff; border-radius: 14px; padding: 18px; box-shadow: 0 6px 24px rgba(0,0,0,.12); align-self: stretch; max-height: 820px; display: flex; flex-direction: column; }
-.panel h1 { font-size: 16px; margin: 0 0 4px; }
-.panel p.sub { margin: 0 0 14px; color: var(--gris); font-size: 12.5px; line-height: 1.4; }
-.estado { font-size: 12px; padding: 6px 10px; border-radius: 8px; background: #e7f8ef; color: #0a6b3d; margin-bottom: 14px; }
-.estado.off { background: #fdecec; color: #a12121; }
-label { font-size: 12px; color: var(--gris); display: block; margin: 8px 0 4px; }
-input { width: 100%; padding: 9px 10px; border: 1px solid var(--borde); border-radius: 8px; font-size: 14px; }
-button { cursor: pointer; border: 0; border-radius: 8px; font-size: 14px; }
-.btn { background: var(--verde); color: #fff; padding: 9px 12px; width: 100%; margin-top: 10px; }
-.btn:hover { background: var(--verde-osc); }
-.pacientes { margin-top: 16px; overflow-y: auto; flex: 1; border-top: 1px solid var(--borde); }
-.pac { padding: 10px 6px; border-bottom: 1px solid var(--borde); cursor: pointer; display: flex; gap: 10px; align-items: center; border-radius: 6px; }
-.pac:hover { background: #f5f6f6; }
-.pac.activo { background: #f0f2f5; }
-.pac .av { width: 34px; height: 34px; border-radius: 50%; background: #dfe5e7; display: grid; place-items: center; font-weight: 600; color: #54656f; flex: none; }
-.pac .nom { font-size: 14px; }
-.pac .num { font-size: 12px; color: var(--gris); }
-.pac .badge { margin-left: auto; background: #25d366; color: #fff; font-size: 11px; border-radius: 10px; padding: 1px 7px; }
+/* =========================================================
+   Teléfono virtual · Chatbot Salud Digna
+   Tema claro / oscuro con variables, diseño responsivo y
+   scroll vertical dentro de cada panel (la página no se estira).
+   ========================================================= */
 
-.telefono { width: 390px; height: 800px; background: #111; border-radius: 46px; padding: 12px; box-shadow: 0 18px 50px rgba(0,0,0,.35); position: relative; }
-.pantalla { width: 100%; height: 100%; border-radius: 36px; overflow: hidden; display: flex; flex-direction: column; background: var(--fondo-chat); }
-.barra-estado { height: 30px; background: var(--verde); color: #fff; font-size: 12px; display: flex; justify-content: space-between; align-items: center; padding: 0 24px; }
-.cab { background: var(--verde); color: #fff; display: flex; align-items: center; gap: 10px; padding: 8px 14px 10px; }
-.cab .av { width: 38px; height: 38px; border-radius: 50%; background: #fff; color: var(--verde); display: grid; place-items: center; font-weight: 700; font-size: 13px; }
-.cab .t1 { font-weight: 600; font-size: 15.5px; }
-.cab .t2 { font-size: 12px; opacity: .85; }
-.chat { flex: 1; overflow-y: auto; padding: 12px 10px; display: flex; flex-direction: column; gap: 4px;
-	background-image: radial-gradient(rgba(0,0,0,.035) 1px, transparent 1px); background-size: 18px 18px; }
-.aviso { align-self: center; background: #ffeecd; color: #54656f; font-size: 12px; padding: 6px 10px; border-radius: 8px; margin: 6px 0 10px; text-align: center; max-width: 90%; }
-.msg { max-width: 82%; padding: 6px 9px 18px; border-radius: 8px; font-size: 14.2px; line-height: 1.38; position: relative; white-space: pre-wrap; word-wrap: break-word; box-shadow: 0 1px .5px rgba(0,0,0,.13); }
-.msg.bot { background: #fff; align-self: flex-start; border-top-left-radius: 2px; }
+:root,
+[data-tema="claro"] {
+  --cab: #008069;
+  --cab-txt: #ffffff;
+  --acento: #008069;
+  --acento-osc: #005c4b;
+  --fondo-app: #d1d7db;
+  --panel: #ffffff;
+  --fondo-chat: #efeae2;
+  --puntos: rgba(0, 0, 0, 0.035);
+  --burbuja-bot: #ffffff;
+  --burbuja-yo: #d9fdd3;
+  --texto: #111b21;
+  --gris: #667781;
+  --borde: #e9edef;
+  --input: #ffffff;
+  --barra-entrada: #f0f2f5;
+  --hover: #f5f6f6;
+  --activo: #f0f2f5;
+  --aviso-bg: #ffeecd;
+  --aviso-txt: #54656f;
+  --link: #027eb5;
+  --ok-bg: #e7f8ef;
+  --ok-txt: #0a6b3d;
+  --error-bg: #fdecec;
+  --error-txt: #a12121;
+  --mapa: linear-gradient(135deg, #cfe9dc, #e7f1ea);
+  --sombra: 0 6px 24px rgba(0, 0, 0, 0.12);
+  --marco: #111111;
+  --scroll: rgba(0, 0, 0, 0.22);
+  color-scheme: light;
+}
+
+[data-tema="oscuro"] {
+  --cab: #202c33;
+  --cab-txt: #e9edef;
+  --acento: #00a884;
+  --acento-osc: #06cf9c;
+  --fondo-app: #0b0f12;
+  --panel: #111b21;
+  --fondo-chat: #0b141a;
+  --puntos: rgba(255, 255, 255, 0.03);
+  --burbuja-bot: #202c33;
+  --burbuja-yo: #005c4b;
+  --texto: #e9edef;
+  --gris: #8696a0;
+  --borde: #222d34;
+  --input: #2a3942;
+  --barra-entrada: #202c33;
+  --hover: #202c33;
+  --activo: #2a3942;
+  --aviso-bg: #182229;
+  --aviso-txt: #ffd279;
+  --link: #53bdeb;
+  --ok-bg: #0f2e24;
+  --ok-txt: #6ee7b7;
+  --error-bg: #3b1515;
+  --error-txt: #fca5a5;
+  --mapa: linear-gradient(135deg, #0f3b2f, #1a2e28);
+  --sombra: 0 6px 24px rgba(0, 0, 0, 0.5);
+  --marco: #2b2f33;
+  --scroll: rgba(255, 255, 255, 0.2);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--fondo-app);
+  color: var(--texto);
+  overflow: hidden; /* la página nunca crece: cada panel hace scroll por dentro */
+  transition: background 0.2s;
+}
+
+button { cursor: pointer; border: 0; font: inherit; color: inherit; }
+input { font: inherit; color: var(--texto); }
+
+/* Barras de scroll finas y discretas */
+.chat, .pacientes, .panel { scrollbar-width: thin; scrollbar-color: var(--scroll) transparent; }
+.chat::-webkit-scrollbar, .pacientes::-webkit-scrollbar, .panel::-webkit-scrollbar { width: 8px; }
+.chat::-webkit-scrollbar-thumb, .pacientes::-webkit-scrollbar-thumb, .panel::-webkit-scrollbar-thumb { background: var(--scroll); border-radius: 8px; }
+.chat::-webkit-scrollbar-track, .pacientes::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- Distribución general ---------- */
+.app {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 24px;
+}
+
+/* ---------- Panel de pacientes ---------- */
+.panel {
+  width: 300px;
+  height: min(800px, 100%);
+  background: var(--panel);
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: var(--sombra);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  transition: background 0.2s, transform 0.25s ease;
+}
+.panel-cab { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.panel-cab h1 { font-size: 16px; margin: 0 0 4px; }
+.panel-botones { display: flex; gap: 4px; flex: none; }
+.sub { margin: 0 0 14px; color: var(--gris); font-size: 12.5px; line-height: 1.4; }
+
+.icono {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: transparent; display: inline-grid; place-items: center; font-size: 17px; flex: none;
+}
+.icono:hover { background: var(--hover); }
+.cab .icono { color: var(--cab-txt); font-size: 20px; }
+.cab .icono:hover { background: rgba(255, 255, 255, 0.12); }
+
+.estado { font-size: 12px; padding: 6px 10px; border-radius: 8px; background: var(--ok-bg); color: var(--ok-txt); margin-bottom: 14px; }
+.estado.off { background: var(--error-bg); color: var(--error-txt); }
+
+.nuevo label { font-size: 12px; color: var(--gris); display: block; margin: 8px 0 4px; }
+.nuevo input {
+  width: 100%; padding: 9px 10px; border: 1px solid var(--borde); border-radius: 8px;
+  font-size: 14px; background: var(--input);
+}
+.btn { background: var(--acento); color: #fff; padding: 9px 12px; width: 100%; margin-top: 10px; border-radius: 8px; font-size: 14px; }
+.btn:hover { background: var(--acento-osc); }
+
+.lista-tit { font-size: 12px; color: var(--gris); margin: 16px 0 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+.pacientes { overflow-y: auto; flex: 1; min-height: 0; border-top: 1px solid var(--borde); }
+.pac {
+  padding: 10px 6px; border-bottom: 1px solid var(--borde); cursor: pointer;
+  display: flex; gap: 10px; align-items: center; border-radius: 6px; position: relative;
+}
+.pac:hover { background: var(--hover); }
+.pac.activo { background: var(--activo); }
+.pac .av, .cab .av {
+  width: 34px; height: 34px; border-radius: 50%; background: var(--borde);
+  display: grid; place-items: center; font-weight: 600; color: var(--gris); flex: none; font-size: 13px;
+}
+.pac .info { min-width: 0; flex: 1; }
+.pac .nom { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pac .num, .pac .ultimo { font-size: 12px; color: var(--gris); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pac .badge { background: #25d366; color: #fff; font-size: 11px; border-radius: 10px; padding: 1px 7px; flex: none; }
+.pac .borrar {
+  opacity: 0; width: 30px; height: 30px; border-radius: 50%; background: transparent; font-size: 14px; flex: none;
+}
+.pac:hover .borrar, .pac:focus-within .borrar { opacity: 1; }
+.pac .borrar:hover { background: var(--error-bg); }
+.lista-vacia { color: var(--gris); font-size: 13px; text-align: center; padding: 24px 8px; }
+
+/* ---------- Teléfono ---------- */
+.telefono {
+  width: 390px;
+  height: min(800px, 100%);
+  background: var(--marco);
+  border-radius: 46px;
+  padding: 12px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+  flex: none;
+  min-height: 0;
+}
+.pantalla {
+  position: relative;
+  width: 100%; height: 100%;
+  border-radius: 36px; overflow: hidden;
+  display: flex; flex-direction: column;
+  background: var(--fondo-chat);
+}
+.barra-estado {
+  height: 30px; background: var(--cab); color: var(--cab-txt); font-size: 12px; flex: none;
+  display: flex; justify-content: space-between; align-items: center; padding: 0 24px;
+}
+.cab { background: var(--cab); color: var(--cab-txt); display: flex; align-items: center; gap: 10px; padding: 8px 8px 10px 14px; flex: none; }
+.cab .av { width: 38px; height: 38px; background: #fff; color: #008069; font-weight: 700; }
+.cab-txt { flex: 1; min-width: 0; }
+.cab .t1 { font-weight: 600; font-size: 15.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cab .t2 { font-size: 12px; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cab-acciones { position: relative; }
+
+/* El chat ocupa el espacio libre y hace scroll vertical por dentro */
+.chat {
+  flex: 1; min-height: 0;
+  overflow-y: auto; overflow-x: hidden;
+  padding: 12px 10px;
+  display: flex; flex-direction: column; gap: 4px;
+  background-image: radial-gradient(var(--puntos) 1px, transparent 1px);
+  background-size: 18px 18px;
+  overscroll-behavior: contain;
+}
+.aviso { align-self: center; background: var(--aviso-bg); color: var(--aviso-txt); font-size: 12px; padding: 6px 10px; border-radius: 8px; margin: 6px 0 10px; text-align: center; max-width: 90%; }
+.msg {
+  max-width: 82%; min-width: 96px;
+  padding: 6px 9px 18px; border-radius: 8px; font-size: 14.2px; line-height: 1.38;
+  position: relative; white-space: pre-wrap; overflow-wrap: anywhere;
+  box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.13);
+}
+.msg.bot { background: var(--burbuja-bot); align-self: flex-start; border-top-left-radius: 2px; }
 .msg.patient { background: var(--burbuja-yo); align-self: flex-end; border-top-right-radius: 2px; }
 .msg .hora { position: absolute; right: 8px; bottom: 3px; font-size: 11px; color: var(--gris); }
 .msg.patient .hora::after { content: " ✓✓"; color: #53bdeb; }
-.msg a { color: #027eb5; }
-.escribiendo { align-self: flex-start; font-size: 12px; color: var(--gris); padding: 4px 8px; display: none; }
-.entrada { display: flex; gap: 8px; padding: 8px 10px 14px; background: #f0f2f5; }
-.entrada input { border-radius: 22px; border: 0; padding: 11px 16px; }
-.entrada button { width: 44px; height: 44px; border-radius: 50%; background: var(--verde); color: #fff; font-size: 18px; flex: none; }
-.vacio { margin: auto; text-align: center; color: var(--gris); font-size: 14px; padding: 30px; }
-/* Compartir ubicación */
-.pantalla { position: relative; }
-.entrada .btn-ubic { background: transparent; color: inherit; font-size: 20px; width: 40px; }
-.entrada .btn-ubic:hover { background: #e2e5e7; }
-.menu-ubic { position: absolute; left: 12px; bottom: 74px; background: #fff; border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.2); padding: 8px; display: flex; flex-direction: column; min-width: 260px; z-index: 5; }
-.menu-ubic[hidden] { display: none; }
-.menu-ubic-tit { font-size: 12px; color: var(--gris); padding: 4px 8px 6px; }
-.menu-ubic button { background: transparent; text-align: left; padding: 9px 10px; font-size: 14px; border-radius: 8px; }
-.menu-ubic button:hover { background: #f0f2f5; }
-.msg .mapa { display: block; margin: 2px 0 4px; padding: 10px 12px; border-radius: 6px; background: linear-gradient(135deg, #cfe9dc, #e7f1ea); color: var(--texto); text-decoration: none; font-size: 13px; }
+.msg a { color: var(--link); }
+.msg .mapa { display: block; margin: 2px 0 4px; padding: 10px 12px; border-radius: 6px; background: var(--mapa); color: var(--texto); text-decoration: none; font-size: 13px; }
 .msg .mapa b { display: block; font-size: 14px; }
+.vacio { margin: auto; text-align: center; color: var(--gris); font-size: 14px; padding: 30px; }
+.escribiendo { font-size: 12px; color: var(--gris); padding: 4px 14px; display: none; flex: none; background: var(--fondo-chat); }
 
-.msg { min-width: 96px; }
+.entrada { display: flex; gap: 8px; padding: 8px 10px 14px; background: var(--barra-entrada); flex: none; }
+.entrada input { flex: 1; min-width: 0; border-radius: 22px; border: 0; padding: 11px 16px; background: var(--input); font-size: 15px; }
+.entrada input:focus { outline: 2px solid var(--acento); }
+.btn-ubic { background: transparent; font-size: 20px; width: 40px; border-radius: 50%; flex: none; }
+.btn-ubic:hover { background: var(--hover); }
+.btn-enviar { width: 44px; height: 44px; border-radius: 50%; background: var(--acento); color: #fff; font-size: 18px; flex: none; }
+
+/* ---------- Menús flotantes ---------- */
+.menu-flotante {
+  position: absolute; background: var(--panel); color: var(--texto);
+  border-radius: 12px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  padding: 8px; display: flex; flex-direction: column; z-index: 5; min-width: 240px;
+}
+.menu-flotante[hidden] { display: none; }
+.menu-flotante button { background: transparent; text-align: left; padding: 9px 10px; font-size: 14px; border-radius: 8px; }
+.menu-flotante button:hover { background: var(--hover); }
+.menu-tit { font-size: 12px; color: var(--gris); padding: 4px 8px 6px; }
+.menu-ubic { left: 12px; bottom: 74px; }
+.menu-chat { right: 0; top: 42px; min-width: 270px; }
+.menu-chat [data-accion="olvidar"] { color: var(--error-txt); }
+
+/* ---------- Modal de confirmación ---------- */
+.modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); display: grid; place-items: center; z-index: 50; padding: 16px; }
+.modal[hidden] { display: none; }
+.modal-caja { background: var(--panel); color: var(--texto); border-radius: 14px; padding: 20px; width: min(380px, 100%); box-shadow: var(--sombra); }
+.modal-caja h2 { font-size: 17px; margin: 0 0 8px; }
+.modal-caja p { font-size: 14px; color: var(--gris); margin: 0 0 18px; line-height: 1.45; }
+.modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+.btn-sec, .btn-peligro { padding: 9px 16px; border-radius: 8px; font-size: 14px; }
+.btn-sec { background: var(--hover); }
+.btn-peligro { background: #d93025; color: #fff; }
+.btn-peligro:hover { background: #b3261e; }
+
+.velo { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 15; }
+.velo[hidden] { display: none; }
+.solo-movil { display: none; }
+
+/* ---------- Pantallas bajitas (laptops): el teléfono usa todo el alto ---------- */
+@media (max-height: 760px) and (min-width: 761px) {
+  .app { padding: 12px; }
+  .telefono { border-radius: 36px; padding: 10px; }
+  .pantalla { border-radius: 28px; }
+}
+
+/* ---------- Tablet: panel más angosto ---------- */
+@media (max-width: 900px) and (min-width: 761px) {
+  .app { gap: 16px; padding: 16px; }
+  .panel { width: 260px; }
+}
+
+/* ---------- Móvil: el teléfono ocupa toda la pantalla y el panel es un cajón ---------- */
+@media (max-width: 760px) {
+  .app { padding: 0; gap: 0; }
+  .telefono { width: 100%; height: 100%; border-radius: 0; padding: 0; background: none; box-shadow: none; }
+  .pantalla { border-radius: 0; }
+  .barra-estado { display: none; }
+  .cab { padding: 8px 6px 8px 4px; padding-top: max(8px, env(safe-area-inset-top)); }
+  .entrada { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+  .msg { max-width: 88%; }
+  .solo-movil { display: inline-grid; }
+
+  .panel {
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 20;
+    width: min(86vw, 340px); height: auto; border-radius: 0 14px 14px 0;
+    transform: translateX(-105%);
+    overflow-y: auto;
+  }
+  .panel.abierto { transform: none; }
+  .pacientes { min-height: 160px; }
+  .pac .borrar { opacity: 1; }
+}
+
+.app {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  align-items: stretch; /* ambos recuadros ocupan todo el alto */
+  gap: 24px;
+  padding: 24px;
+}
+
+.panel {
+  flex: 1 1 0;          /* ocupa el espacio libre (1 parte) */
+  min-width: 280px;
+  height: 100%;
+  /* …el resto igual… */
+}
+
+.telefono {
+  flex: 2 1 0;          /* ocupa el espacio libre (2 partes) */
+  min-width: 360px;
+  height: 100%;
+  /* …el resto igual (se quitó width: 390px y flex: none)… */
+}

@@ -57,6 +57,21 @@ export const citas = {
   delPaciente: (number) => Object.values(db.citas).filter((c) => c.number === number),
 };
 
+// Olvida todo sobre un paciente (perfil y citas). Para reiniciar demos.
+export function olvidar(number) {
+  const existia = Boolean(db.perfiles[number]);
+  delete db.perfiles[number];
+  let borradas = 0;
+  for (const [folio, c] of Object.entries(db.citas)) {
+    if (c.number === number) {
+      delete db.citas[folio];
+      borradas++;
+    }
+  }
+  guardar();
+  return { existia, citasBorradas: borradas };
+}
+
 export function resumen() {
   return { perfiles: Object.keys(db.perfiles).length, citas: Object.keys(db.citas).length };
 }
