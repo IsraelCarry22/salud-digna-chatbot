@@ -34,7 +34,16 @@
     </div>
     <div class="chat" id="chat"><div class="vacio">Abre un chat desde el panel izquierdo y escribe <b>hola</b>.</div></div>
     <div class="escribiendo" id="escribiendo">escribiendo…</div>
+    <div class="menu-ubic" id="menuUbic" hidden>
+      <div class="menu-ubic-tit">Compartir ubicación</div>
+      <button type="button" data-gps>📡 Mi ubicación real (GPS del navegador)</button>
+      <button type="button" data-lat="24.8091" data-lng="-107.3940" data-nom="Culiacán">🏙️ Culiacán (demo)</button>
+      <button type="button" data-lat="20.6597" data-lng="-103.3496" data-nom="Guadalajara">🏙️ Guadalajara (demo)</button>
+      <button type="button" data-lat="19.4326" data-lng="-99.1332" data-nom="CDMX">🏙️ Ciudad de México (demo)</button>
+      <button type="button" data-lat="25.6866" data-lng="-100.3161" data-nom="Monterrey">🏙️ Monterrey (demo)</button>
+    </div>
     <form class="entrada" id="form">
+      <button type="button" class="btn-ubic" id="btnUbic" aria-label="Compartir ubicación" title="Compartir ubicación">📍</button>
       <input id="texto" placeholder="Mensaje" autocomplete="off" />
       <button type="submit" aria-label="Enviar">➤</button>
     </form>

@@ -1,5 +1,6 @@
 import express from 'express';
-import { handleMessage, citas } from './flows.js';
+import { handleMessage } from './flows.js';
+import { citas, resumen } from './store.js';
 import { sendText, config } from './evolution.js';
 import { emit } from './orchestrator.js';
 import { getSession, stats } from './sessions.js';
@@ -25,12 +26,21 @@ function parseUpsert(body) {
     msg.extendedTextMessage?.text ||
     msg.buttonsResponseMessage?.selectedDisplayText ||
     msg.listResponseMessage?.title ||
+    msg.imageMessage?.caption ||
     '';
+  // Ubicación compartida (fija o en tiempo real)
+  const loc = msg.locationMessage || msg.liveLocationMessage;
+  const location =
+    loc && Number.isFinite(Number(loc.degreesLatitude))
+      ? { lat: Number(loc.degreesLatitude), lng: Number(loc.degreesLongitude) }
+      : null;
   return {
     id: d.key.id,
     number: jid.split('@')[0],
     name: d.pushName || '',
     text,
+    location,
+    tipo: d.messageType || Object.keys(msg)[0] || 'desconocido',
   };
 }
 
@@ -46,14 +56,14 @@ async function responder(number, mensajes) {
 app.post(['/webhook', '/webhook/:evento'], async (req, res) => {
   res.sendStatus(200); // responder rápido; procesamos después
   const m = parseUpsert(req.body);
-  if (!m || !m.text) return;
+  if (!m) return;
   if (m.id && vistos.has(m.id)) return;
   if (m.id) {
     vistos.add(m.id);
     if (vistos.size > 5000) vistos.delete(vistos.values().next().value);
   }
   contador.entrantes++;
-  await emit('message_in', { patientId: m.number, name: m.name, text: m.text });
+  await emit('message_in', { patientId: m.number, name: m.name, text: m.text, location: m.location, tipo: m.tipo });
   try {
     const respuestas = await handleMessage(m);
     await responder(m.number, respuestas);
@@ -77,13 +87,13 @@ app.post('/agent/reply', async (req, res) => {
 app.post('/notify', async (req, res) => {
   const { number, text, folio, estado } = req.body || {};
   if (!number || !text) return res.status(400).json({ error: 'number y text son obligatorios' });
-  if (folio && citas.has(folio) && estado) citas.get(folio).estado = estado;
+  if (folio && estado && citas.get(folio)) citas.update(folio, { estado });
   await responder(String(number), [text]);
   res.json({ ok: true });
 });
 
-app.get('/citas', (_req, res) => res.json([...citas.values()]));
-app.get('/stats', (_req, res) => res.json({ ...contador, sesiones: stats(), citas: citas.size }));
+app.get('/citas', (_req, res) => res.json(citas.todas()));
+app.get('/stats', (_req, res) => res.json({ ...contador, sesiones: stats(), memoria: resumen() }));
 app.get('/health', (_req, res) => res.json({ ok: true, evolution: config() }));
 
 app.listen(PORT, () => {

@@ -18,6 +18,9 @@ services:
       EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-cambia-esta-clave}
       EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-saluddigna}
       ORCHESTRATOR_URL: ${ORCHESTRATOR_URL:-}
+      DATA_DIR: /app/data
+    volumes:
+      - bot_data:/app/data   # memoria del bot (perfiles y citas) sobrevive reinicios
     depends_on:
       - simulator
 
@@ -112,6 +115,7 @@ services:
       retries: 10
 
 volumes:
+  bot_data:
   evolution_instances:
   postgres_data:
   redis_data:

@@ -37,7 +37,13 @@ for (const [number, c] of chats) {
 function burbuja(m) {
 const div = document.createElement('div');
 div.className = 'msg ' + (m.from === 'bot' ? 'bot' : 'patient');
-div.innerHTML = formato(m.text) + `<span class="hora">${hora(m.ts)}</span>`;
+if (m.location) {
+	const { lat, lng, nombre } = m.location;
+	div.innerHTML = `<a class="mapa" href="https://www.google.com/maps/search/?api=1&query=${lat},${lng}" target="_blank" rel="noopener">
+	<b>📍 Ubicación${nombre ? ' · ' + esc(nombre) : ''}</b>${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}</a>` + `<span class="hora">${hora(m.ts)}</span>`;
+} else {
+	div.innerHTML = formato(m.text) + `<span class="hora">${hora(m.ts)}</span>`;
+}
 return div;
 }
 
@@ -71,22 +77,55 @@ asegurar(number, $('nom').value.trim());
 abrir(number);
 };
 
+// Envía un mensaje del paciente (texto o ubicación) al simulador
+async function enviar(extra) {
+	if (!actual) $('nuevo').click();
+	$('escribiendo').style.display = 'block';
+	try {
+		const r = await fetch('/ui/send', {
+		method: 'POST', headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ number: actual, name: chats.get(actual)?.name || '', ...extra }),
+		});
+		if (!r.ok) alertaEstado('El bot no respondió. ¿Está corriendo el contenedor "bot"?', true);
+	} catch { alertaEstado('Sin conexión con el simulador', true); }
+	setTimeout(() => ($('escribiendo').style.display = 'none'), 1500);
+}
+
 $('form').onsubmit = async (e) => {
-e.preventDefault();
-const text = $('texto').value.trim();
-if (!text) return;
-if (!actual) $('nuevo').click();
-$('texto').value = '';
-$('escribiendo').style.display = 'block';
-try {
-	const r = await fetch('/ui/send', {
-	method: 'POST', headers: { 'Content-Type': 'application/json' },
-	body: JSON.stringify({ number: actual, name: chats.get(actual)?.name || '', text }),
-	});
-	if (!r.ok) alertaEstado('El bot no respondió. ¿Está corriendo el contenedor "bot"?', true);
-} catch { alertaEstado('Sin conexión con el simulador', true); }
-setTimeout(() => ($('escribiendo').style.display = 'none'), 1500);
+	e.preventDefault();
+	const text = $('texto').value.trim();
+	if (!text) return;
+	$('texto').value = '';
+	enviar({ text });
 };
+
+// ---------- Compartir ubicación ----------
+$('btnUbic').onclick = (e) => {
+	e.stopPropagation();
+	$('menuUbic').hidden = !$('menuUbic').hidden;
+};
+document.addEventListener('click', (e) => {
+	if (!$('menuUbic').contains(e.target)) $('menuUbic').hidden = true;
+});
+$('menuUbic').querySelectorAll('button').forEach((b) => {
+	b.onclick = () => {
+	$('menuUbic').hidden = true;
+	if (b.dataset.gps !== undefined) {
+		if (!navigator.geolocation) return alertaEstado('Tu navegador no permite geolocalización; usa una ciudad demo.', true);
+		alertaEstado('Obteniendo tu ubicación…');
+		navigator.geolocation.getCurrentPosition(
+		(pos) => {
+			alertaEstado('● Ubicación enviada');
+			enviar({ location: { lat: pos.coords.latitude, lng: pos.coords.longitude, nombre: 'Ubicación actual' } });
+		},
+		(err) => alertaEstado(`No se pudo obtener la ubicación (${err.message}). Usa una ciudad demo.`, true),
+		{ enableHighAccuracy: true, timeout: 10000 }
+		);
+	} else {
+		enviar({ location: { lat: b.dataset.lat, lng: b.dataset.lng, nombre: b.dataset.nom } });
+	}
+	};
+});
 
 function alertaEstado(txt, error) {
 const e = $('estado');

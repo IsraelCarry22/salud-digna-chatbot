@@ -90,12 +90,22 @@ app.post('/ui/send', async (req, res) => {
   const number = soloNumero(req.body?.number);
   const name = String(req.body?.name || '').slice(0, 60);
   const text = String(req.body?.text || '').slice(0, 4000);
-  if (!number || !text) return res.status(400).json({ error: 'number y text son obligatorios' });
+  const loc = req.body?.location;
+  const location =
+    loc && Number.isFinite(Number(loc.lat)) && Number.isFinite(Number(loc.lng))
+      ? { lat: Number(loc.lat), lng: Number(loc.lng), nombre: String(loc.nombre || '').slice(0, 80) }
+      : null;
+  if (!number || (!text && !location)) return res.status(400).json({ error: 'number y text (o location) son obligatorios' });
 
   const id = randomUUID().replace(/-/g, '').slice(0, 20).toUpperCase();
   if (!chats.has(number)) chats.set(number, { name, messages: [] });
   if (name) chats.get(number).name = name;
-  guardar(number, { id, from: 'patient', text, ts: Date.now() });
+  guardar(number, { id, from: 'patient', text: location ? '📍 Ubicación' : text, location, ts: Date.now() });
+
+  // Mismo formato que Evolution API: texto -> conversation, ubicación -> locationMessage
+  const message = location
+    ? { locationMessage: { degreesLatitude: location.lat, degreesLongitude: location.lng, name: location.nombre || '', address: '' } }
+    : { conversation: text };
 
   const payload = {
     event: 'messages.upsert',
@@ -103,8 +113,8 @@ app.post('/ui/send', async (req, res) => {
     data: {
       key: { remoteJid: `${number}@s.whatsapp.net`, fromMe: false, id },
       pushName: name,
-      message: { conversation: text },
-      messageType: 'conversation',
+      message,
+      messageType: location ? 'locationMessage' : 'conversation',
       messageTimestamp: Math.floor(Date.now() / 1000),
       instanceId: INSTANCE_ID,
       source: 'web',

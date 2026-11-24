@@ -61,16 +61,36 @@ En el panel izquierdo puedes crear varios pacientes (números distintos) para si
 
 ## 3. Lo que hace el bot
 
-| Opción | Flujo |
-|---|---|
-| 1 Agendar cita | estudio → ciudad → sucursal → horario → confirmación → folio `SD-AAMMDD-####` |
-| 2 Resultados | por folio (`SD-DEMO-0001` regresa resultados listos) |
-| 3 Sucursales | por ciudad, con horarios |
-| 4 Precios | lista de referencia |
-| 5 Preparación | indicaciones por estudio |
-| 6 Agente | pasa la conversación al call center (handoff) |
+**Menú principal:** 1 Agendar cita · 2 Mis citas · 3 Resultados · 4 Sucursal más cercana · 5 Estudios (precios y preparación) · 6 Agente · 7 Enlaces útiles.
 
-`menu` regresa al inicio en cualquier momento. **Todos los datos (precios, sucursales, horarios) son simulados**; están en `bot/src/data.js`.
+| Función | Cómo se ve |
+|---|---|
+| **Navegación en todos los pasos** | `atrás` regresa un paso, `0`/`menu` va al menú, `salir` termina la conversación |
+| **Mensajes fuera de lugar** | Repite lo que escribió el paciente ("No entendí *pizza* en este paso"), le dice qué espera y, al tercer intento, ofrece un agente |
+| **Lenguaje natural** | "quiero agendar un ultrasonido", "¿cuánto cuesta la mastografía?", "sucursales en Monterrey", o un folio escrito en cualquier momento |
+| **Memoria** | Recuerda nombre, sucursal de siempre, último estudio, citas y ubicación (`bot/data/memoria.json`, en un volumen de Docker). Saluda "¡Qué gusto verte de nuevo!" y le recuerda su próxima cita |
+| **Horarios con cupo** | Muestra días y horas con 🟢 lugares / 🟡 último lugar / ⛔ lleno; `más` para ver otros días. Si alguien gana el horario, avisa |
+| **Mis citas** | Ver, reprogramar (libera el horario anterior) o cancelar |
+| **Ubicación** | Con la ubicación de WhatsApp (`locationMessage`) calcula las sucursales más cercanas (Haversine), da el link de la ruta en Google Maps y el de las clínicas reales cerca del paciente |
+| **Emergencias** | "dolor de pecho", "no puedo respirar", etc. → indica llamar al 911 y manda alerta `emergency_flag` al orquestador |
+| **Agente humano** | Handoff con confirmación al paciente; el call center contesta con `POST /agent/reply` |
+
+En el teléfono virtual, el botón **📍** comparte la ubicación real del navegador (GPS) o una ciudad demo.
+
+**Datos:** los enlaces de `LINKS` en `bot/src/data.js` son los públicos de Salud Digna (verifícalos antes de presentar). Precios, sucursales, coordenadas y horarios son **simulados**.
+
+### Estructura del bot
+
+| Archivo | Qué hace |
+|---|---|
+| `src/index.js` | Servidor, webhook de Evolution API (texto y ubicación), endpoints |
+| `src/flows.js` | Pasos de la conversación, navegación, intenciones |
+| `src/nlp.js` | Normalización de texto, intenciones, emergencias, distancia |
+| `src/agenda.js` | Disponibilidad con cupos, folios, próximas citas |
+| `src/store.js` | Memoria persistente (perfiles y citas) |
+| `src/sessions.js` | En qué paso va cada conversación (expira a los 30 min) |
+| `src/data.js` | Enlaces, estudios, ciudades y sucursales |
+| `src/orchestrator.js` | Envía eventos al orquestador omnicanal |
 
 ## 4. Endpoints para el orquestador / call center
 
@@ -86,7 +106,7 @@ curl -X POST localhost:3001/notify -H "Content-Type: application/json" \
 
 Si defines `ORCHESTRATOR_URL`, el bot le manda cada evento con este formato:
 ```json
-{ "channel": "whatsapp", "type": "message_in | message_out | appointment_created | handoff | agent_message | handoff_closed",
+{ "channel": "whatsapp", "type": "message_in | message_out | appointment_created | appointment_rescheduled | appointment_cancelled | location_shared | emergency_flag | handoff | agent_message | handoff_closed | session_closed",
   "timestamp": "...", "patientId": "5216671234567", "...": "datos del evento" }
 ```
 
