@@ -67,7 +67,10 @@ En el panel izquierdo puedes crear varios pacientes (números distintos) para si
 |---|---|
 | **Navegación en todos los pasos** | `atrás` regresa un paso, `0`/`menu` va al menú, `salir` termina la conversación |
 | **Mensajes fuera de lugar** | Repite lo que escribió el paciente ("No entendí *pizza* en este paso"), le dice qué espera y, al tercer intento, ofrece un agente |
-| **Lenguaje natural** | "quiero agendar un ultrasonido", "¿cuánto cuesta la mastografía?", "sucursales en Monterrey", o un folio escrito en cualquier momento |
+| **Lenguaje natural (`entender.js`)** | Entiende horas ("a la 1pm", "como a las 9 y media", "al mediodía", "en la tarde", "lo más pronto"), fechas ("mañana", "pasado mañana", "el jueves", "el 27", "27 de noviembre", "la próxima semana"), opciones con palabras ("la primera", "el dos", "la última") y respuestas como "sí, confírmala", "dale" o "mejor no" |
+| **Todo en un mensaje** | "quiero un ultrasonido en Minerva el jueves a la 1pm" → llena estudio, sucursal y horario y pasa directo a confirmar. Si no hay lugar, propone los horarios más cercanos |
+| **Cambios con palabras** | En la confirmación: "mejor a las 3 de la tarde". En cualquier momento: "cambia mi cita para el viernes en la mañana" o "cancela mi cita" |
+| **Intenciones** | "quiero agendar un ultrasonido", "¿cuánto cuesta la mastografía?", "sucursales en Monterrey", o un folio escrito en cualquier momento |
 | **Memoria** | Recuerda nombre, sucursal de siempre, último estudio, citas y ubicación (`bot/data/memoria.json`, en un volumen de Docker). Saluda "¡Qué gusto verte de nuevo!" y le recuerda su próxima cita |
 | **Horarios con cupo** | Muestra días y horas con 🟢 lugares / 🟡 último lugar / ⛔ lleno; `más` para ver otros días. Si alguien gana el horario, avisa |
 | **Mis citas** | Ver, reprogramar (libera el horario anterior) o cancelar |
@@ -86,6 +89,7 @@ En el teléfono virtual, el botón **📍** comparte la ubicación real del nave
 | `src/index.js` | Servidor, webhook de Evolution API (texto y ubicación), endpoints |
 | `src/flows.js` | Pasos de la conversación, navegación, intenciones |
 | `src/nlp.js` | Normalización de texto, intenciones, emergencias, distancia |
+| `src/entender.js` | Horas, fechas, opciones dichas con palabras, sí/no |
 | `src/agenda.js` | Disponibilidad con cupos, folios, próximas citas |
 | `src/store.js` | Memoria persistente (perfiles y citas) |
 | `src/sessions.js` | En qué paso va cada conversación (expira a los 30 min) |

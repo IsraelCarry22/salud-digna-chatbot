@@ -10,6 +10,7 @@ import { getSession, reset } from './sessions.js';
 import { perfil, actualizarPerfil, citas } from './store.js';
 import { disponibilidad, hayLugar, nuevoFolio, proximasCitas, etiquetaFecha } from './agenda.js';
 import { norm, esNumero, comando, intencion, esEmergencia, elegir, distanciaKm, esFolio } from './nlp.js';
+import { opcion, afirmativo, negativo, preferenciaHorario, diasDesdeHoy, amPm, horaBonita } from './entender.js';
 import { emit } from './orchestrator.js';
 
 const NAV = '\n\n↩️ *atrás*  ·  🏠 *0* menú  ·  ❌ *salir*';
@@ -47,6 +48,161 @@ function listaCercanas(s, pie) {
 }
 
 const sucursalesDe = (s) => TODAS_SUCURSALES.filter((x) => x.ciudadId === s.data.ciudad.id);
+
+// ---------------------------------------------------------------------------
+// Lenguaje natural en el flujo de citas
+// ---------------------------------------------------------------------------
+const minutos = (h) => {
+  const [a, b] = h.split(':').map(Number);
+  return a * 60 + b;
+};
+const etiquetaSlot = (x) => `${etiquetaFecha(x.fecha)} · ${horaBonita(x.hora)}${x.libres === 1 ? '  🟡 último lugar' : ''}`;
+
+function descPref(p) {
+  if (!p) return '';
+  const partes = [];
+  if (p.fecha) partes.push(p.hoy ? 'hoy' : `el ${etiquetaFecha(p.fecha)}`);
+  if (p.hora) partes.push(`${p.hora.startsWith('13:') || p.hora.startsWith('01:') ? 'a la' : 'a las'} ${amPm(p.hora)}`);
+  if (p.franja === 'manana') partes.push('en la mañana');
+  if (p.franja === 'tarde') partes.push('en la tarde');
+  if (p.franja === 'pronto') partes.push('lo más pronto posible');
+  return partes.join(' ');
+}
+
+// Busca una sucursal por su nombre ("Minerva", "el centro de Monterrey") o al menos la ciudad
+function buscarSucursal(t, ctx) {
+  if (/\b(de siempre|mi sucursal|la misma|la de siempre)\b/.test(t) && sucursalPorId(ctx.perfil.sucursalId)) {
+    return { sucursal: sucursalPorId(ctx.perfil.sucursalId) };
+  }
+  const palabras = t.split(' ');
+  const ciudad = elegir(CIUDADES, t);
+  let cand = TODAS_SUCURSALES.filter((x) => {
+    const nombre = norm(x.nombre).replace('sucursal ', '');
+    return nombre.includes(' ') ? t.includes(nombre) : palabras.includes(nombre);
+  });
+  if (ciudad) cand = cand.filter((x) => x.ciudadId === ciudad.id);
+  if (cand.length === 1) return { sucursal: cand[0] };
+  return { ciudad };
+}
+
+// Toma del mensaje todo lo que sirva para la cita: estudio, sucursal/ciudad y cuándo
+function absorber(s, ctx) {
+  if (ctx.op != null) return;
+  if (!s.data.estudio) {
+    const e = elegir(ESTUDIOS, ctx.t);
+    if (e) s.data.estudio = e;
+  }
+  if (!s.data.sucursal) {
+    const r = buscarSucursal(ctx.t, ctx);
+    if (r.sucursal) s.data.sucursal = r.sucursal;
+    else if (r.ciudad && !s.data.ciudad) s.data.ciudad = r.ciudad;
+  }
+  if (ctx.pref) s.data.pref = { ...(s.data.pref || {}), ...ctx.pref };
+}
+
+const huella = (s) => JSON.stringify([s.data.estudio?.id, s.data.sucursal?.id, s.data.ciudad?.id, s.data.pref]);
+
+function resumenCita(s) {
+  const partes = [];
+  if (s.data.estudio) partes.push(`🧪 ${s.data.estudio.nombre}`);
+  if (s.data.sucursal) partes.push(`📍 ${s.data.sucursal.nombre}, ${s.data.sucursal.ciudad}`);
+  else if (s.data.ciudad) partes.push(`🏙️ ${s.data.ciudad.nombre}`);
+  if (s.data.pref) partes.push(`🕒 ${descPref(s.data.pref)}`);
+  return partes.join('\n');
+}
+
+// Avanza al siguiente dato que falte para la cita
+function avanzarCita(s, ctx, prefijo = '') {
+  if (!s.data.estudio) return go(s, 'cita_estudio', ctx, prefijo);
+  if (!s.data.sucursal) return go(s, s.data.ciudad ? 'cita_sucursal' : 'cita_donde', ctx, prefijo);
+  if (s.data.pref) return resolverHorario(s, ctx, prefijo);
+  return go(s, 'cita_horario', ctx, prefijo);
+}
+
+function slotsLibres(suc, desde, nDias) {
+  const { dias } = disponibilidad(suc, desde, nDias);
+  return dias.flatMap((d) => d.horas.filter((h) => h.libres > 0).map((h) => ({ fecha: d.fecha, hora: h.hora, libres: h.libres })));
+}
+
+function textoAlternativas(s) {
+  return (
+    `${s.data.alt}\n\n${s.data.slots.map((x, i) => `${i + 1}. ${etiquetaSlot(x)}`).join('\n')}\n\n` +
+    'Responde el número, o dime otro día u hora (por ejemplo "el viernes a las 9").\n➡️ *más* para ver todos los horarios.' +
+    NAV
+  );
+}
+
+// Convierte "el jueves a la 1pm" en un horario real de la agenda (o propone los más cercanos)
+function resolverHorario(s, ctx, prefijo = '') {
+  const pref = s.data.pref;
+  delete s.data.pref;
+  // Si ya habíamos hablado de un día y ahora solo dice la hora, se respeta ese día
+  if (!pref.fecha && !pref.franja && s.data.fechaContexto) pref.fecha = s.data.fechaContexto;
+  if (pref.fecha && !pref.hoy) s.data.fechaContexto = pref.fecha;
+  const suc = s.data.sucursal;
+  const notas = prefijo ? [prefijo] : [];
+  let desde = 1;
+  let nDias = 7;
+  if (pref.fecha) {
+    const d = diasDesdeHoy(pref.fecha);
+    if (pref.hoy || d < 1) notas.push('📅 Para hoy ya no hay citas en línea; te muestro a partir de mañana.');
+    else {
+      desde = d;
+      nDias = pref.desdeSemana ? 6 : 1;
+    }
+  }
+  let slots = slotsLibres(suc, desde, nDias);
+  if (pref.fecha && !pref.hoy && !pref.desdeSemana && (!slots.length || slots[0].fecha !== pref.fecha)) {
+    notas.push(`📅 El ${etiquetaFecha(pref.fecha)} no hay lugares en ${suc.nombre}; te muestro los días siguientes.`);
+    slots = slotsLibres(suc, desde + 1, 3);
+  }
+  if (!slots.length) slots = slotsLibres(suc, 1, 7);
+
+  if (pref.franja === 'manana' || pref.franja === 'tarde') {
+    const f = slots.filter((x) => (pref.franja === 'manana' ? minutos(x.hora) < 720 : minutos(x.hora) >= 720));
+    if (f.length) slots = f;
+    else notas.push(`😕 No hay lugares ${pref.franja === 'manana' ? 'en la mañana' : 'en la tarde'} esos días.`);
+  }
+
+  let exacto = null;
+  let lista = slots.slice(0, 6);
+  let encabezado = `🗓️ Horarios ${descPref(pref)} en *${suc.nombre}*:`;
+
+  if (pref.franja === 'pronto') {
+    exacto = slots[0];
+  } else if (pref.hora) {
+    exacto = slots.find((x) => x.hora === pref.hora) || null;
+    if (!exacto) {
+      const primerDia = slots[0]?.fecha;
+      lista = [...slots]
+        .sort((a, b) => {
+          const pa = Math.abs(minutos(a.hora) - minutos(pref.hora)) + (a.fecha !== primerDia ? 240 : 0);
+          const pb = Math.abs(minutos(b.hora) - minutos(pref.hora)) + (b.fecha !== primerDia ? 240 : 0);
+          return pa - pb;
+        })
+        .slice(0, 4)
+        .sort((a, b) => `${a.fecha}${a.hora}`.localeCompare(`${b.fecha}${b.hora}`));
+      encabezado = `😕 No tengo lugar ${descPref(pref)} en *${suc.nombre}*. Lo más cercano que tengo:`;
+    }
+  } else if (slots.length === 1) {
+    exacto = slots[0];
+  }
+
+  if (exacto) {
+    s.data.slot = exacto;
+    delete s.data.alt;
+    notas.push(`👍 ¡Sí hay lugar el *${etiquetaFecha(exacto.fecha)}* ${descPref({ hora: exacto.hora }).replace(/(a las?) (.*)/, '$1 *$2*')}!`);
+    return go(s, 'cita_confirmar', ctx, notas.join('\n'));
+  }
+
+  s.data.slots = lista;
+  s.data.alt = encabezado;
+  if (s.step !== 'cita_horario') {
+    s.historial.push(s.step);
+    s.step = 'cita_horario';
+  }
+  return [[...notas, textoAlternativas(s)].join('\n\n')];
+}
 
 // ---------------------------------------------------------------------------
 // Navegación
@@ -128,24 +284,38 @@ async function irA(seccion, s, ctx, prefijo = '') {
   const est = ctx.t ? elegir(ESTUDIOS, ctx.t) : null;
   const ciudad = ctx.t ? elegir(CIUDADES, ctx.t) : null;
   switch (seccion) {
-    case 'cita':
-      if (est && !esNumero(ctx.t)) {
-        s.data.estudio = est;
-        return go(s, 'cita_donde', ctx, `${prefijo ? prefijo + '\n' : ''}🧪 Estudio: *${est.nombre}*`);
+    case 'cita': {
+      absorber(s, ctx);
+      const res = resumenCita(s);
+      return avanzarCita(s, ctx, [prefijo, res && `Esto es lo que entendí:\n${res}`].filter(Boolean).join('\n\n'));
+    }
+    case 'mis_citas': {
+      // "cambia mi cita al viernes a las 9" / "cancela mi cita" cuando solo hay una
+      const prox = proximasCitas(ctx.number);
+      if (prox.length === 1 && ctx.t) {
+        const c = prox[0];
+        if (ctx.pref && /cambi|reprogram|mover|mueve|pasar|pasa/.test(ctx.t)) {
+          s.historial.push(s.step);
+          s.data = { cita: c.folio, estudio: estudioPorId(c.estudioId), sucursal: sucursalPorId(c.sucursalId), reprogramar: c.folio, pref: ctx.pref };
+          return resolverHorario(s, ctx, [prefijo, `🔁 Va, busco lugar para tu *${c.estudio}* ${descPref(ctx.pref)}.`].filter(Boolean).join('\n'));
+        }
+        if (/cancel/.test(ctx.t)) {
+          s.data = { cita: c.folio };
+          return go(s, 'cita_cancelar', ctx, prefijo);
+        }
       }
-      return go(s, 'cita_estudio', ctx, prefijo);
-    case 'mis_citas':
       return go(s, 'mis_citas', ctx, prefijo);
+    }
     case 'resultados':
       return go(s, 'resultados', ctx, prefijo);
     case 'cercana':
-      if (ciudad && !esNumero(ctx.t)) {
+      if (ciudad && ctx.op == null) {
         s.data.ciudad = ciudad;
         return go(s, 'sucursal_lista', ctx, prefijo);
       }
       return go(s, 'cercana', ctx, prefijo);
     case 'estudios':
-      if (est && !esNumero(ctx.t)) {
+      if (est && ctx.op == null) {
         s.data.estudio = est;
         return go(s, 'estudio_detalle', ctx, prefijo);
       }
@@ -184,7 +354,12 @@ const STEPS = {
     prompt: (s, ctx) => menuTexto(ctx),
     handle: async (s, ctx) => {
       const mapa = { 1: 'cita', 2: 'mis_citas', 3: 'resultados', 4: 'cercana', 5: 'estudios', 6: 'agente', 7: 'enlaces' };
-      if (esNumero(ctx.t) && mapa[ctx.t]) return irA(mapa[ctx.t], s, { ...ctx, t: '' });
+      const n = opcion(ctx.t, 7);
+      if (n) return irA(mapa[n], s, { ...ctx, t: '', pref: null });
+      // Frases completas: "cambia mi cita al viernes", "un ultrasonido en Minerva el jueves a las 9"
+      const i = intencion(ctx.t);
+      if (i) return irA(i, s, ctx, `👍 Entendí que quieres *${NOMBRE_INTENCION[i]}*.`);
+      if (ctx.pref || buscarSucursal(ctx.t, ctx).sucursal) return irA('cita', s, ctx, '👍 Entendí que quieres *agendar una cita*.');
       return null;
     },
   },
@@ -207,8 +382,8 @@ const STEPS = {
       const est = elegir(ESTUDIOS, ctx.t);
       if (!est) return null;
       s.data.estudio = est;
-      if (s.data.sucursal) return go(s, 'cita_horario', ctx, `✅ ${est.nombre}.`);
-      return go(s, 'cita_donde', ctx, `✅ ${est.nombre}.`);
+      absorber(s, ctx);
+      return avanzarCita(s, ctx, `✅ ${est.nombre}.`);
     },
   },
 
@@ -224,7 +399,8 @@ const STEPS = {
       return `🏥 *¿En qué sucursal quieres tu cita?*\n\n${opts.map((o, i) => `${i + 1}. ${o[1]}`).join('\n')}` + NAV;
     },
     handle: (s, ctx) => {
-      let op = esNumero(ctx.t) ? s.data.opcionesDonde[parseInt(ctx.t, 10) - 1] : null;
+      const n = opcion(ctx.t, s.data.opcionesDonde.length);
+      let op = n ? s.data.opcionesDonde[n - 1] : null;
       if (!op && /cerca|ubicacion/.test(ctx.t)) op = 'cerca';
       if (!op && /ciudad/.test(ctx.t)) op = 'ciudad';
       if (!op && /siempre|misma|mia/.test(ctx.t) && s.data.opcionesDonde.includes('mia')) op = 'mia';
@@ -232,13 +408,15 @@ const STEPS = {
         const c = elegir(CIUDADES, ctx.t);
         if (c) {
           s.data.ciudad = c;
-          return go(s, 'cita_sucursal', ctx);
+          absorber(s, ctx);
+          return avanzarCita(s, ctx);
         }
         return null;
       }
       if (op === 'mia') {
         s.data.sucursal = sucursalPorId(ctx.perfil.sucursalId);
-        return go(s, 'cita_horario', ctx);
+        absorber(s, ctx);
+        return avanzarCita(s, ctx);
       }
       if (op === 'cerca') {
         const u = ctx.perfil.ubicacion;
@@ -262,9 +440,10 @@ const STEPS = {
     handle: (s, ctx) => {
       if (/ciudad|lista/.test(ctx.t)) return go(s, 'cita_ciudad', ctx);
       const c = elegir(CIUDADES, ctx.t);
-      if (c && !esNumero(ctx.t)) {
+      if (c && ctx.op == null) {
         s.data.ciudad = c;
-        return go(s, 'cita_sucursal', ctx);
+        absorber(s, ctx);
+        return avanzarCita(s, ctx);
       }
       return null;
     },
@@ -282,7 +461,8 @@ const STEPS = {
       const suc = elegir(ops, ctx.t);
       if (!suc) return null;
       s.data.sucursal = suc;
-      return go(s, 'cita_horario', ctx, `✅ ${suc.nombre}, ${suc.ciudad}.`);
+      absorber(s, ctx);
+      return avanzarCita(s, ctx, `✅ ${suc.nombre}, ${suc.ciudad}.`);
     },
   },
 
@@ -293,7 +473,8 @@ const STEPS = {
       const c = elegir(CIUDADES, ctx.t);
       if (!c) return null;
       s.data.ciudad = c;
-      return go(s, 'cita_sucursal', ctx);
+      absorber(s, ctx);
+      return avanzarCita(s, ctx);
     },
   },
 
@@ -304,16 +485,18 @@ const STEPS = {
       sucursalesDe(s).map((x, i) => `${i + 1}. *${x.nombre}*\n    🕒 ${x.horario}`).join('\n') +
       NAV,
     handle: (s, ctx) => {
-      const suc = elegir(sucursalesDe(s), ctx.t);
-      if (!suc) return null;
+      const suc = elegir(sucursalesDe(s), ctx.t) || buscarSucursal(ctx.t, ctx).sucursal;
+      if (!suc || suc.ciudadId !== s.data.ciudad.id) return null;
       s.data.sucursal = suc;
-      return go(s, 'cita_horario', ctx, `✅ ${suc.nombre}.`);
+      absorber(s, ctx);
+      return avanzarCita(s, ctx, `✅ ${suc.nombre}.`);
     },
   },
 
   cita_horario: {
-    espera: 'necesito el *número del horario* que quieres (o escribe *más* para ver otros días)',
+    espera: 'necesito el horario: dime su número o algo como "el jueves a la 1pm" (o *más* para ver otros días)',
     prompt: (s) => {
+      if (s.data.alt) return textoAlternativas(s);
       const { dias, siguienteDesde } = disponibilidad(s.data.sucursal, s.data.desde || 1, 2);
       s.data.siguiente = siguienteDesde;
       s.data.slots = [];
@@ -329,32 +512,33 @@ const STEPS = {
       return (
         `🗓️ *Horarios disponibles en ${s.data.sucursal.nombre}*\n🧪 ${s.data.estudio.nombre}\n\n` +
         `${bloques.join('\n\n')}\n\n` +
-        'Responde el *número* del horario.\n➡️ Escribe *más* para ver otros días.' +
+        'Responde el *número* del horario o dímelo con tus palabras (ej. "el jueves a la 1pm", "lo más pronto").\n➡️ Escribe *más* para ver otros días.' +
         NAV
       );
     },
     handle: (s, ctx) => {
-      if (/^(mas|siguiente|otros dias|otro dia|despues)$/.test(ctx.t)) {
-        s.data.desde = s.data.siguiente;
+      if (/^(mas|siguiente|otros dias|otro dia|despues|ver todos|todos)$/.test(ctx.t)) {
+        s.data.desde = s.data.alt ? 1 : s.data.siguiente;
+        delete s.data.alt;
         return [STEPS.cita_horario.prompt(s, ctx)];
       }
-      let slot = null;
-      const hora = ctx.t.match(/^(\d{1,2}):(\d{2})$/);
-      if (hora) {
-        const hh = `${hora[1].padStart(2, '0')}:${hora[2]}`;
-        slot = s.data.slots.find((x) => x.hora === hh);
-        if (!slot) return [`😕 El horario de las *${hh}* no está disponible. Elige uno de la lista con su número.`];
-      } else if (esNumero(ctx.t)) {
-        slot = s.data.slots[parseInt(ctx.t, 10) - 1] || null;
+      const n = opcion(ctx.t, s.data.slots.length);
+      if (n) {
+        s.data.slot = s.data.slots[n - 1];
+        delete s.data.alt;
+        return go(s, 'cita_confirmar', ctx);
       }
-      if (!slot) return null;
-      s.data.slot = slot;
-      return go(s, 'cita_confirmar', ctx);
+      // "quisiera agendarla a la 1pm", "el jueves en la tarde", "lo más pronto"
+      if (ctx.pref) {
+        s.data.pref = ctx.pref;
+        return resolverHorario(s, ctx);
+      }
+      return null;
     },
   },
 
   cita_confirmar: {
-    espera: 'responde *1* para confirmar, *2* para cambiar el horario o *3* para cancelar',
+    espera: 'dime *sí* para confirmar, otra hora o día para cambiarla (ej. "mejor a las 9"), o *no* para cancelar',
     prompt: (s, ctx) => {
       const { estudio, sucursal, slot, reprogramar } = s.data;
       return [
@@ -367,10 +551,20 @@ const STEPS = {
         `⏱️ Duración aprox.: ${estudio.duracion}`,
         reprogramar ? `🔁 Esta cita reemplaza a la *${reprogramar}*.` : null,
         '\n1. ✅ Confirmar\n2. 🕒 Cambiar horario\n3. ❌ Cancelar',
+        '\n_También puedes responder "sí", "mejor a las 9" o "no"._',
       ].filter((x) => x !== null).join('\n');
     },
     handle: async (s, ctx) => {
-      if (['1', 'si', 'confirmar', 'confirmo', 'ok', 'va', 'dale'].includes(ctx.t)) {
+      // "mejor a las 9", "¿y el viernes?": cambia el horario sin pasar por la lista
+      if (ctx.pref) {
+        const p = { ...ctx.pref };
+        if (!p.fecha) p.fecha = s.data.slot.fecha;
+        if (!p.hora && !p.franja) p.hora = s.data.slot.hora;
+        s.data.pref = p;
+        s.data.slot = null;
+        return resolverHorario(s, ctx, '🔁 Va, lo cambio.');
+      }
+      if (ctx.op === 1 || afirmativo(ctx.t)) {
         const { estudio, sucursal, slot, reprogramar } = s.data;
         if (!hayLugar(sucursal.id, slot.fecha, slot.hora)) {
           s.step = 'cita_horario';
@@ -403,11 +597,12 @@ const STEPS = {
           'Te mandaré un recordatorio un día antes. Lleva una identificación y tu folio.\nEscribe *2* para ver tus citas o *0* para el menú.',
         ];
       }
-      if (['2', 'cambiar', 'cambiar horario', 'otro horario'].includes(ctx.t)) {
+      if (ctx.op === 2 || /\b(cambiar|otro horario|otra hora|otro dia|otra fecha)\b/.test(ctx.t)) {
         s.step = 'cita_horario';
+        delete s.data.alt;
         return [STEPS.cita_horario.prompt(s, ctx)];
       }
-      if (['3', 'no', 'cancelar'].includes(ctx.t)) {
+      if (ctx.op === 3 || negativo(ctx.t)) {
         reset(s);
         return ['De acuerdo, no agendé nada. 🙂 Escribe *0* para ver el menú cuando quieras.'];
       }
@@ -433,7 +628,7 @@ const STEPS = {
     },
     handle: (s, ctx) => {
       if (!s.data.misCitas.length) {
-        if (ctx.t === '1' || /agendar|cita/.test(ctx.t)) {
+        if (ctx.op === 1 || afirmativo(ctx.t) || /agendar|cita/.test(ctx.t)) {
           s.data = {};
           return go(s, 'cita_estudio', ctx);
         }
@@ -460,12 +655,17 @@ const STEPS = {
     },
     handle: (s, ctx) => {
       const c = citas.get(s.data.cita);
-      if (ctx.t === '1' || /reprogramar|cambiar/.test(ctx.t)) {
+      // "cámbiala para el viernes a las 9"
+      if (ctx.pref) {
+        s.data = { cita: c.folio, estudio: estudioPorId(c.estudioId), sucursal: sucursalPorId(c.sucursalId), reprogramar: c.folio, pref: ctx.pref };
+        return resolverHorario(s, ctx, `🔁 Va, busco lugar ${descPref(ctx.pref)}.`);
+      }
+      if (ctx.op === 1 || /reprogram|cambiar|cambia|mover/.test(ctx.t)) {
         s.data = { estudio: estudioPorId(c.estudioId), sucursal: sucursalPorId(c.sucursalId), reprogramar: c.folio, desde: 1 };
         return go(s, 'cita_horario', ctx, '🔁 Elige el nuevo horario:');
       }
-      if (ctx.t === '2' || /cancelar/.test(ctx.t)) return go(s, 'cita_cancelar', ctx);
-      if (ctx.t === '3' || /preparacion|ayuno/.test(ctx.t)) {
+      if (ctx.op === 2 || /cancel/.test(ctx.t)) return go(s, 'cita_cancelar', ctx);
+      if (ctx.op === 3 || /preparacion|ayuno|preparo|llevar/.test(ctx.t)) {
         return [`📋 *Preparación para ${c.estudio}:*\n${estudioPorId(c.estudioId).prep}\n\n1. 🔁 Reprogramar · 2. ❌ Cancelar` + NAV];
       }
       return null;
@@ -476,14 +676,14 @@ const STEPS = {
     espera: 'responde *1* para cancelar la cita o *2* para conservarla',
     prompt: (s) => `⚠️ ¿Seguro que quieres cancelar la cita *${s.data.cita}*?\n\n1. Sí, cancelarla\n2. No, conservarla`,
     handle: async (s, ctx) => {
-      if (['1', 'si', 'cancelar', 'cancelala'].includes(ctx.t)) {
+      if (ctx.op === 1 || afirmativo(ctx.t) || /^(cancelar|cancelala|si cancelala)$/.test(ctx.t)) {
         const folio = s.data.cita;
         citas.update(folio, { estado: 'cancelada', canceladaEn: new Date().toISOString() });
         await emit('appointment_cancelled', { patientId: ctx.number, folio });
         reset(s);
         return [`🗑️ Cita *${folio}* cancelada. Ese horario quedó libre para otro paciente.\n\nEscribe *1* para agendar otra o *0* para el menú.`];
       }
-      if (['2', 'no', 'conservar'].includes(ctx.t)) return atras(s, ctx);
+      if (ctx.op === 2 || negativo(ctx.t) || /conservar|dejala/.test(ctx.t)) return atras(s, ctx);
       return null;
     },
   },
@@ -527,7 +727,7 @@ const STEPS = {
     handle: (s, ctx) => {
       if (/^(ciudad|lista|ciudades)$/.test(ctx.t)) return go(s, 'sucursal_ciudad', ctx);
       const c = elegir(CIUDADES, ctx.t);
-      if (!c || esNumero(ctx.t)) return null;
+      if (!c || ctx.op != null) return null;
       s.data.ciudad = c;
       return go(s, 'sucursal_lista', ctx);
     },
@@ -603,8 +803,11 @@ const STEPS = {
       );
     },
     handle: (s, ctx) => {
-      if (ctx.t === '1' || /agendar|cita/.test(ctx.t)) return go(s, 'cita_donde', ctx);
-      if (ctx.t === '2' || /otro/.test(ctx.t)) {
+      if (ctx.op === 1 || afirmativo(ctx.t) || /agendar|cita/.test(ctx.t)) {
+        absorber(s, ctx);
+        return avanzarCita(s, ctx);
+      }
+      if (ctx.op === 2 || /otro/.test(ctx.t)) {
         s.historial.pop();
         s.step = 'estudios';
         return [STEPS.estudios.prompt(s, ctx)];
@@ -634,7 +837,7 @@ export async function handleMessage({ number, name, text, location }) {
   const s = getSession(number);
   const p = perfil(number);
   const t = norm(text);
-  const ctx = { number, name, text, t, location, perfil: p };
+  const ctx = { number, name, text, t, location, perfil: p, op: opcion(t), pref: preferenciaHorario(t) };
 
   // Memoria: nombre y número de visitas
   if (s.step === 'nuevo') actualizarPerfil(number, { visitas: (p.visitas || 0) + 1, ultimaVisita: new Date().toISOString() });
@@ -716,7 +919,14 @@ export async function handleMessage({ number, name, text, location }) {
     return res;
   }
 
-  // 7) Mensaje fuera de lugar: ¿escribió un folio o pidió otra cosa?
+  // 7) En medio de una cita: ¿dio otro dato útil? ("en Minerva", "el jueves a la 1pm")
+  if (s.step.startsWith('cita_') && !['cita_confirmar', 'cita_detalle', 'cita_cancelar'].includes(s.step) && ctx.op == null) {
+    const antes = huella(s);
+    absorber(s, ctx);
+    if (huella(s) !== antes) return avanzarCita(s, ctx, `📝 Anotado:\n${resumenCita(s)}`);
+  }
+
+  // 8) Mensaje fuera de lugar: ¿escribió un folio o pidió otra cosa?
   if (esFolio(text) && s.step !== 'resultados') {
     s.historial.push(s.step);
     s.step = 'resultados';
@@ -728,7 +938,7 @@ export async function handleMessage({ number, name, text, location }) {
     if (i) return irA(i, s, ctx, `👍 Entendí que quieres *${NOMBRE_INTENCION[i]}*.`);
   }
 
-  // 8) No se entendió: lo mencionamos y repetimos lo que esperamos
+  // 9) No se entendió: lo mencionamos y repetimos lo que esperamos
   s.errores = (s.errores || 0) + 1;
   const eco = String(text || '').trim();
   const ecoCorto = eco.length > 40 ? eco.slice(0, 40) + '…' : eco;

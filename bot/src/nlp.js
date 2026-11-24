@@ -1,3 +1,5 @@
+import { opcion } from './entender.js';
+
 // Entendimiento de texto ligero (sin IA): normalización, intenciones por palabras clave,
 // detección de emergencias y búsqueda de opciones por nombre.
 
@@ -6,7 +8,7 @@ export const norm = (t) =>
     .toLowerCase()
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
-    .replace(/[¿?¡!.,;:]/g, ' ')
+    .replace(/[¿?¡!,;]|\.(?!\d)|:(?!\d)/g, ' ') // conserva "13:00" y "9.30"
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -36,7 +38,7 @@ export const esFolio = (texto) => /^SD-[A-Z0-9-]{4,}$/.test(String(texto || '').
 const INTENCIONES = [
   ['mis_citas', ['mis citas', 'mi cita', 'cancelar', 'reprogramar', 'cambiar mi cita', 'cambiar cita']],
   ['resultados', ['resultado', 'resultados', 'folio', 'mis estudios', 'descargar']],
-  ['cita', ['agendar', 'cita', 'reservar', 'apartar', 'agenda']],
+  ['cita', ['agendar', 'cita', 'citas', 'reservar', 'apartar', 'agenda', 'turno', 'programar']],
   ['cercana', ['cerca', 'cercana', 'cercano', 'ubicacion', 'donde queda', 'donde estan', 'sucursal', 'sucursales', 'clinica', 'direccion', 'horario']],
   ['estudios', ['precio', 'precios', 'cuanto cuesta', 'costo', 'cuesta', 'ayuno', 'preparacion', 'requisitos', 'estudio', 'estudios', 'que necesito']],
   ['agente', ['agente', 'humano', 'asesor', 'persona', 'operador', 'hablar con alguien', 'queja']],
@@ -45,7 +47,8 @@ const INTENCIONES = [
 
 export function intencion(t) {
   for (const [nombre, claves] of INTENCIONES) {
-    if (claves.some((k) => (k.includes(' ') ? t.includes(k) : t.split(' ').includes(k)))) return nombre;
+    const palabras = t.split(' ');
+    if (claves.some((k) => (k.includes(' ') ? t.includes(k) : palabras.some((w) => w === k || (k.length >= 6 && w.startsWith(k)))))) return nombre;
   }
   return null;
 }
@@ -63,10 +66,9 @@ function coincideClave(t, palabras, k) {
 }
 
 export function elegir(items, t, nombreDe = (x) => x.nombre) {
-  if (esNumero(t)) {
-    const n = parseInt(t, 10);
-    return n >= 1 && n <= items.length ? items[n - 1] : null;
-  }
+  const n = opcion(t, items.length);
+  if (n) return items[n - 1];
+  if (esNumero(t)) return null;
   if (t.length < 3) return null;
   const palabras = t.split(' ');
   return (
