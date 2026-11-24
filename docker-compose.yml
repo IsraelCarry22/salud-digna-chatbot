@@ -1,0 +1,117 @@
+name: saluddigna-chatbot
+
+services:
+  # ------------------------------------------------------------------
+  # Chatbot de WhatsApp (lógica de menús, citas, resultados, handoff)
+  # ------------------------------------------------------------------
+  bot:
+    build: ./bot
+    container_name: sd-bot
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      # Por defecto el bot habla con el simulador (teléfono virtual).
+      # Para usar Evolution API real cambia EVOLUTION_URL en .env a http://evolution-api:8080
+      EVOLUTION_URL: ${EVOLUTION_URL:-http://simulator:8080}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-cambia-esta-clave}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-saluddigna}
+      ORCHESTRATOR_URL: ${ORCHESTRATOR_URL:-}
+    depends_on:
+      - simulator
+
+  # ------------------------------------------------------------------
+  # Simulador de Evolution API + teléfono virtual tipo WhatsApp
+  # Abre http://localhost:8090 en el navegador. No conecta ningún teléfono.
+  # ------------------------------------------------------------------
+  simulator:
+    build: ./simulator
+    container_name: sd-simulator
+    restart: unless-stopped
+    ports:
+      - "8090:8080"
+    environment:
+      PORT: 8080
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-cambia-esta-clave}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-saluddigna}
+      WEBHOOK_URL: http://bot:3001/webhook
+
+  # ------------------------------------------------------------------
+  # Evolution API REAL (opcional). Solo arranca con:
+  #   docker compose --profile evolution up -d --build
+  # Úsala con la integración WHATSAPP-BUSINESS (Cloud API de Meta con
+  # número de prueba) para no vincular tu teléfono personal.
+  # ------------------------------------------------------------------
+  evolution-api:
+    image: evoapicloud/evolution-api:latest
+    container_name: sd-evolution-api
+    profiles: ["evolution"]
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SERVER_URL: http://localhost:8080
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-cambia-esta-clave}
+      DEL_INSTANCE: "false"
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution:${POSTGRES_PASSWORD:-evolution123}@postgres:5432/evolution?schema=public
+      DATABASE_CONNECTION_CLIENT_NAME: saluddigna
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://redis:6379/6
+      CACHE_REDIS_PREFIX_KEY: evolution
+      CACHE_LOCAL_ENABLED: "false"
+      # Webhook global: todos los mensajes entrantes llegan al bot
+      WEBHOOK_GLOBAL_ENABLED: "true"
+      WEBHOOK_GLOBAL_URL: http://bot:3001/webhook
+      WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS: "false"
+      WEBHOOK_EVENTS_MESSAGES_UPSERT: "true"
+      # Token que verás en Meta al configurar el webhook de la Cloud API
+      WA_BUSINESS_TOKEN_WEBHOOK: ${WA_BUSINESS_TOKEN_WEBHOOK:-saluddigna-verify}
+      LANGUAGE: es
+    volumes:
+      - evolution_instances:/evolution/instances
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: sd-postgres
+    profiles: ["evolution"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-evolution123}
+      POSTGRES_DB: evolution
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evolution -d evolution"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: sd-redis
+    profiles: ["evolution"]
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  evolution_instances:
+  postgres_data:
+  redis_data:

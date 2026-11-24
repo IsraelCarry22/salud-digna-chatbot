@@ -1,0 +1,16 @@
+{
+  "name": "evolution-simulator",
+  "version": "1.0.0",
+  "description": "Simulador de Evolution API v2 con teléfono virtual tipo WhatsApp (sin conectar teléfono real)",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

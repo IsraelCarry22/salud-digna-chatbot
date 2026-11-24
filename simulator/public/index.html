@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Chatbot Salud Digna</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<aside class="panel">
+  <h1>Teléfono virtual</h1>
+  <p class="sub">Simula pacientes escribiendo por WhatsApp al chatbot. No usa ningún teléfono ni número real: los mensajes viajan con el mismo formato de Evolution API.</p>
+  <div id="estado" class="estado">Conectando…</div>
+
+  <label for="num">Número del paciente</label>
+  <input id="num" value="5216671234567" inputmode="numeric" />
+  <label for="nom">Nombre</label>
+  <input id="nom" value="María López" />
+  <button class="btn" id="nuevo">Abrir chat con este paciente</button>
+
+  <div class="pacientes" id="pacientes"></div>
+</aside>
+
+<div class="telefono">
+  <div class="pantalla">
+    <div class="barra-estado"><span id="reloj">9:41</span><span>5G ▮▮▮ 🔋</span></div>
+    <div class="cab">
+      <div class="av">SD</div>
+      <div>
+        <div class="t1">Salud Digna <small>(demo)</small></div>
+        <div class="t2" id="sub">Asistente virtual · en línea</div>
+      </div>
+    </div>
+    <div class="chat" id="chat"><div class="vacio">Abre un chat desde el panel izquierdo y escribe <b>hola</b>.</div></div>
+    <div class="escribiendo" id="escribiendo">escribiendo…</div>
+    <form class="entrada" id="form">
+      <input id="texto" placeholder="Mensaje" autocomplete="off" />
+      <button type="submit" aria-label="Enviar">➤</button>
+    </form>
+  </div>
+</div>
+
+<script src="script.js" defer></script>
+</body>
+</html>
