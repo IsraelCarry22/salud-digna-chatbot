@@ -21,33 +21,6 @@ const hora = (ts) => new Date(ts).toLocaleTimeString('es-MX', { hour: '2-digit',
 const iniciales = (n) => (n || '?').split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 const textoPlano = (t) => String(t || '').replace(/[*_~]/g, '').replace(/\s+/g, ' ').trim();
 
-// ---------- Números de teléfono (México: +52 y 10 dígitos) ----------
-// Saca los 10 dígitos nacionales de lo que venga: "+52 866 123 4567", "528661234567" o "5218661234567"
-function diezDigitos(valor) {
-  let d = String(valor || '').replace(/\D/g, '');
-  if (d.length === 13 && d.startsWith('521')) d = d.slice(3); // formato antiguo de WhatsApp móvil
-  else if (d.length === 12 && d.startsWith('52')) d = d.slice(2);
-  return d.slice(0, 10);
-}
-// 8661234567 -> "+52 866 123 4567"
-function formatearNumero(valor) {
-  const d = diezDigitos(valor);
-  return ['+52', d.slice(0, 3), d.slice(3, 6), d.slice(6, 10)].filter(Boolean).join(' ');
-}
-// Identificador que viaja al bot: 52 + 10 dígitos
-const numeroCompleto = (valor) => '52' + diezDigitos(valor);
-
-// Lo que el usuario escribe en el campo: siempre "+52 " + máximo 10 dígitos agrupados 3-3-4
-function digitosDelCampo(valor) {
-  return String(valor || '').replace(/^\s*\+?\s*52\s*/, '').replace(/\D/g, '').slice(0, 10);
-}
-function mascaraNumero() {
-  const d = digitosDelCampo($('num').value);
-  $('num').value = d ? formatearNumero(d) : '+52 ';
-}
-$('num').addEventListener('input', mascaraNumero);
-$('num').addEventListener('focus', () => { if (!digitosDelCampo($('num').value)) $('num').value = '+52 '; });
-
 function asegurar(number, name) {
   if (!chats.has(number)) chats.set(number, { name: name || '', messages: [] });
   if (name) chats.get(number).name = name;
@@ -93,7 +66,7 @@ function pintarPacientes() {
     div.className = 'pac' + (number === actual ? ' activo' : '');
     const n = noLeidos.get(number) || 0;
     const ultimo = c.messages[c.messages.length - 1];
-    const vista = ultimo ? (ultimo.location ? '📍 Ubicación' : textoPlano(ultimo.text)) : formatearNumero(number);
+    const vista = ultimo ? (ultimo.location ? '📍 Ubicación' : textoPlano(ultimo.text)) : `+${number}`;
     div.innerHTML = `<div class="av">${esc(iniciales(c.name || number))}</div>
       <div class="info"><div class="nom">${esc(c.name || 'Paciente')}</div><div class="ultimo">${esc(vista)}</div></div>
       ${n ? `<span class="badge">${n}</span>` : ''}
@@ -137,10 +110,10 @@ function pintarChat() {
     return;
   }
   const c = chats.get(actual);
-  $('sub').textContent = `Chat con ${c.name || 'paciente'} · ${formatearNumero(actual)}`;
+  $('sub').textContent = `Chat con ${c.name || 'paciente'} · +${actual}`;
   const aviso = document.createElement('div');
   aviso.className = 'aviso';
-  aviso.textContent = `Chat simulado · paciente ${formatearNumero(actual)}. Escribe "hola" o "menu" para empezar.`;
+  aviso.textContent = `Chat simulado · paciente +${actual}. Escribe "hola" o "menu" para empezar.`;
   chat.appendChild(aviso);
   for (const m of c.messages) chat.appendChild(burbuja(m));
   bajarAlFinal();
@@ -150,7 +123,7 @@ function abrir(number) {
   actual = number;
   noLeidos.delete(number);
   const c = chats.get(number);
-  $('num').value = formatearNumero(number);
+  $('num').value = number;
   $('nom').value = c?.name || '';
   pintarPacientes();
   pintarChat();
@@ -160,9 +133,8 @@ function abrir(number) {
 
 $('formNuevo').onsubmit = (e) => {
   e.preventDefault();
-  const d = digitosDelCampo($('num').value);
-  if (d.length !== 10) return alertaEstado(`El número debe tener 10 dígitos después del +52 (llevas ${d.length}).`, true);
-  const number = numeroCompleto(d);
+  const number = $('num').value.replace(/\D/g, '');
+  if (number.length < 8) return alertaEstado('Escribe un número válido (al menos 8 dígitos)', true);
   asegurar(number, $('nom').value.trim());
   abrir(number);
 };
@@ -170,9 +142,8 @@ $('formNuevo').onsubmit = (e) => {
 // Envía un mensaje del paciente (texto o ubicación) al simulador
 async function enviar(extra) {
   if (!actual) {
-    const d = digitosDelCampo($('num').value);
-    if (d.length !== 10) return alertaEstado('Primero abre un chat con un número de 10 dígitos', true);
-    const number = numeroCompleto(d);
+    const number = $('num').value.replace(/\D/g, '');
+    if (!number) return alertaEstado('Primero abre un chat', true);
     asegurar(number, $('nom').value.trim());
     abrir(number);
   }
@@ -197,6 +168,29 @@ $('form').onsubmit = (e) => {
   $('texto').value = '';
   enviar({ text });
 };
+
+// Saca los 10 dígitos nacionales de lo que venga: "+52 866 123 4567", "528661234567" o "5218661234567"
+function diezDigitos(valor) {
+  let d = String(valor || '').replace(/\D/g, '');
+  if (d.length === 13 && d.startsWith('521')) d = d.slice(3);
+  else if (d.length === 12 && d.startsWith('52')) d = d.slice(2);
+  return d.slice(0, 10);
+}
+// 8661234567 -> "+52 866 123 4567"
+function formatearNumero(valor) {
+  const d = diezDigitos(valor);
+  return ['+52', d.slice(0, 3), d.slice(3, 6), d.slice(6, 10)].filter(Boolean).join(' ');
+}
+const numeroCompleto = (valor) => '52' + diezDigitos(valor);
+
+function digitosDelCampo(valor) {
+  return String(valor || '').replace(/^\s*\+?\s*52\s*/, '').replace(/\D/g, '').slice(0, 10);
+}
+function mascaraNumero() {
+  const d = digitosDelCampo($('num').value);
+  $('num').value = d ? formatearNumero(d) : '+52 ';
+}
+$('num').addEventListener('input', mascaraNumero);
 
 // ---------- Menús flotantes (ubicación y opciones del chat) ----------
 function alternarMenu(id, e) {
@@ -270,7 +264,7 @@ let pendiente = null;
 
 function pedirBorrado(number, accion) {
   const c = chats.get(number);
-  const nombre = c?.name ? `${c.name} (${formatearNumero(number)})` : formatearNumero(number);
+  const nombre = c?.name ? `${c.name} (+${number})` : `+${number}`;
   const t = TEXTOS_BORRADO[accion];
   pendiente = { number, accion };
   $('modalTit').textContent = t.titulo;
@@ -348,7 +342,7 @@ async function cargar() {
     const lista = await (await fetch('/ui/chats')).json();
     for (const c of lista) chats.set(c.number, { name: c.name, messages: c.messages });
   } catch {}
-  if (!chats.size) asegurar(numeroCompleto(digitosDelCampo($('num').value)), $('nom').value);
+  if (!chats.size) asegurar($('num').value.replace(/\D/g, ''), $('nom').value);
   actual = [...chats.keys()][0];
   pintarPacientes();
   pintarChat();
