@@ -13,13 +13,13 @@ import { norm, esNumero, comando, intencion, esEmergencia, elegir, distanciaKm, 
 import { opcion, afirmativo, negativo, preferenciaHorario, diasDesdeHoy, amPm, horaBonita } from './entender.js';
 import { emit } from './orchestrator.js';
 
-const NAV = '\n\n↩️ *atrás*  ·  🏠 *0* menú  ·  ❌ *salir*';
+const NAV = '\n\n_*atrás* · *0* menú · *salir*_';
 const primerNombre = (n) => String(n || '').trim().split(/\s+/)[0] || '';
 const precio = (n) => `$${n.toLocaleString('es-MX')} MXN`;
 const UBIC_VIGENTE_MS = 2 * 60 * 60 * 1000; // reusar la ubicación hasta 2 h
 
 const COMO_UBICACION =
-  '📍 Compárteme tu ubicación: toca el clip 📎 → *Ubicación* → *Enviar mi ubicación actual*.\n' +
+  'Compárteme tu ubicación: toca el clip 📎 → *Ubicación* → *Enviar mi ubicación actual*.\n' +
   '_(En el teléfono virtual usa el botón 📍 junto al campo de mensaje.)_';
 
 // Las n sucursales más cercanas; si hay alguna a menos de 50 km, se omiten las lejanas
@@ -35,14 +35,14 @@ function listaCercanas(s, pie) {
   const lineas = lista.map(
     (x, i) =>
       `${i + 1}. *${x.nombre}* (${x.ciudad}) — ${x.km < 1 ? Math.round(x.km * 1000) + ' m' : x.km.toFixed(1) + ' km'}\n` +
-      `    🕒 ${x.horario}\n    🗺️ Cómo llegar: ${LINKS.ruta(s.data.origen, x)}`
+      `    Horario: ${x.horario}\n    Cómo llegar: ${LINKS.ruta(s.data.origen, x)}`
   );
   const lejos = lista[0].km > 50
-    ? `\n\n⚠️ La más cercana está a ${Math.round(lista[0].km)} km: esta demo solo tiene sucursales en ${CIUDADES.map((c) => c.nombre).join(', ')}.`
+    ? `\n\nLa más cercana está a ${Math.round(lista[0].km)} km: esta demo solo tiene sucursales en ${CIUDADES.map((c) => c.nombre).join(', ')}.`
     : '';
   return (
-    `🧭 *Sucursales más cercanas a ti:*\n\n${lineas.join('\n\n')}${lejos}\n\n${pie}\n\n` +
-    `🔎 Todas las clínicas Salud Digna cerca de ti en Google Maps:\n${LINKS.mapaCercanas(s.data.origen.lat, s.data.origen.lng)}` +
+    `*Sucursales más cercanas a ti:*\n\n${lineas.join('\n\n')}${lejos}\n\n${pie}\n\n` +
+    `Todas las clínicas Salud Digna cerca de ti en Google Maps:\n${LINKS.mapaCercanas(s.data.origen.lat, s.data.origen.lng)}` +
     NAV
   );
 }
@@ -56,7 +56,7 @@ const minutos = (h) => {
   const [a, b] = h.split(':').map(Number);
   return a * 60 + b;
 };
-const etiquetaSlot = (x) => `${etiquetaFecha(x.fecha)} · ${horaBonita(x.hora)}${x.libres === 1 ? '  🟡 último lugar' : ''}`;
+const etiquetaSlot = (x) => `${etiquetaFecha(x.fecha)} · ${horaBonita(x.hora)}${x.libres === 1 ? ' (último lugar)' : ''}`;
 
 function descPref(p) {
   if (!p) return '';
@@ -104,10 +104,10 @@ const huella = (s) => JSON.stringify([s.data.estudio?.id, s.data.sucursal?.id, s
 
 function resumenCita(s) {
   const partes = [];
-  if (s.data.estudio) partes.push(`🧪 ${s.data.estudio.nombre}`);
-  if (s.data.sucursal) partes.push(`📍 ${s.data.sucursal.nombre}, ${s.data.sucursal.ciudad}`);
-  else if (s.data.ciudad) partes.push(`🏙️ ${s.data.ciudad.nombre}`);
-  if (s.data.pref) partes.push(`🕒 ${descPref(s.data.pref)}`);
+  if (s.data.estudio) partes.push(`Estudio: ${s.data.estudio.nombre}`);
+  if (s.data.sucursal) partes.push(`Sucursal: ${s.data.sucursal.nombre}, ${s.data.sucursal.ciudad}`);
+  else if (s.data.ciudad) partes.push(`Ciudad: ${s.data.ciudad.nombre}`);
+  if (s.data.pref) partes.push(`Cuándo: ${descPref(s.data.pref)}`);
   return partes.join('\n');
 }
 
@@ -127,7 +127,7 @@ function slotsLibres(suc, desde, nDias) {
 function textoAlternativas(s) {
   return (
     `${s.data.alt}\n\n${s.data.slots.map((x, i) => `${i + 1}. ${etiquetaSlot(x)}`).join('\n')}\n\n` +
-    'Responde el número, o dime otro día u hora (por ejemplo "el viernes a las 9").\n➡️ *más* para ver todos los horarios.' +
+    'Responde el número, o dime otro día u hora (por ejemplo "el viernes a las 9").\n*más* para ver todos los horarios.' +
     NAV
   );
 }
@@ -145,7 +145,7 @@ function resolverHorario(s, ctx, prefijo = '') {
   let nDias = 7;
   if (pref.fecha) {
     const d = diasDesdeHoy(pref.fecha);
-    if (pref.hoy || d < 1) notas.push('📅 Para hoy ya no hay citas en línea; te muestro a partir de mañana.');
+    if (pref.hoy || d < 1) notas.push('Para hoy ya no hay citas en línea; te muestro a partir de mañana.');
     else {
       desde = d;
       nDias = pref.desdeSemana ? 6 : 1;
@@ -153,7 +153,7 @@ function resolverHorario(s, ctx, prefijo = '') {
   }
   let slots = slotsLibres(suc, desde, nDias);
   if (pref.fecha && !pref.hoy && !pref.desdeSemana && (!slots.length || slots[0].fecha !== pref.fecha)) {
-    notas.push(`📅 El ${etiquetaFecha(pref.fecha)} no hay lugares en ${suc.nombre}; te muestro los días siguientes.`);
+    notas.push(`El ${etiquetaFecha(pref.fecha)} no hay lugares en ${suc.nombre}; te muestro los días siguientes.`);
     slots = slotsLibres(suc, desde + 1, 3);
   }
   if (!slots.length) slots = slotsLibres(suc, 1, 7);
@@ -161,12 +161,12 @@ function resolverHorario(s, ctx, prefijo = '') {
   if (pref.franja === 'manana' || pref.franja === 'tarde') {
     const f = slots.filter((x) => (pref.franja === 'manana' ? minutos(x.hora) < 720 : minutos(x.hora) >= 720));
     if (f.length) slots = f;
-    else notas.push(`😕 No hay lugares ${pref.franja === 'manana' ? 'en la mañana' : 'en la tarde'} esos días.`);
+    else notas.push(`No hay lugares ${pref.franja === 'manana' ? 'en la mañana' : 'en la tarde'} esos días.`);
   }
 
   let exacto = null;
   let lista = slots.slice(0, 6);
-  let encabezado = `🗓️ Horarios ${descPref(pref)} en *${suc.nombre}*:`;
+  let encabezado = `Horarios ${descPref(pref)} en *${suc.nombre}*:`;
 
   if (pref.franja === 'pronto') {
     exacto = slots[0];
@@ -182,7 +182,7 @@ function resolverHorario(s, ctx, prefijo = '') {
         })
         .slice(0, 4)
         .sort((a, b) => `${a.fecha}${a.hora}`.localeCompare(`${b.fecha}${b.hora}`));
-      encabezado = `😕 No tengo lugar ${descPref(pref)} en *${suc.nombre}*. Lo más cercano que tengo:`;
+      encabezado = `No tengo lugar ${descPref(pref)} en *${suc.nombre}*. Lo más cercano que tengo:`;
     }
   } else if (slots.length === 1) {
     exacto = slots[0];
@@ -191,7 +191,7 @@ function resolverHorario(s, ctx, prefijo = '') {
   if (exacto) {
     s.data.slot = exacto;
     delete s.data.alt;
-    notas.push(`👍 ¡Sí hay lugar el *${etiquetaFecha(exacto.fecha)}* ${descPref({ hora: exacto.hora }).replace(/(a las?) (.*)/, '$1 *$2*')}!`);
+    notas.push(`¡Sí hay lugar el *${etiquetaFecha(exacto.fecha)}* ${descPref({ hora: exacto.hora }).replace(/(a las?) (.*)/, '$1 *$2*')}!`);
     return go(s, 'cita_confirmar', ctx, notas.join('\n'));
   }
 
@@ -219,11 +219,11 @@ function atras(s, ctx) {
   const prev = s.historial.pop();
   if (!prev || prev === 'menu') {
     reset(s);
-    return [`↩️ Regresamos al inicio.\n\n${menuTexto(ctx)}`];
+    return [`Regresamos al inicio.\n\n${menuTexto(ctx)}`];
   }
   s.step = prev;
   s.errores = 0;
-  return [`↩️ Regresamos un paso.\n\n${STEPS[prev].prompt(s, ctx)}`];
+  return [`Regresamos un paso.\n\n${STEPS[prev].prompt(s, ctx)}`];
 }
 
 // ---------------------------------------------------------------------------
@@ -233,13 +233,13 @@ function menuTexto() {
   return [
     '¿En qué te puedo ayudar? Responde con el número o escríbeme lo que necesitas:',
     '',
-    '1️⃣ Agendar una cita',
-    '2️⃣ Mis citas (ver, cambiar o cancelar)',
-    '3️⃣ Consultar resultados',
-    '4️⃣ Sucursal más cercana 📍',
-    '5️⃣ Estudios: precios y preparación',
-    '6️⃣ Hablar con un agente',
-    '7️⃣ Enlaces útiles',
+    '1. Agendar una cita',
+    '2. Mis citas (ver, cambiar o cancelar)',
+    '3. Consultar resultados',
+    '4. Sucursal más cercana',
+    '5. Estudios: precios y preparación',
+    '6. Hablar con un agente',
+    '7. Enlaces útiles',
     '',
     '_En cualquier momento: *atrás*, *0* para el menú o *salir*._',
   ].join('\n');
@@ -260,7 +260,7 @@ function saludo(ctx) {
     const suc = sucursalPorId(p.sucursalId);
     const est = estudioPorId(p.ultimoEstudioId);
     if (prox) {
-      lineas.push(`📌 Recuerda: tienes *${prox.estudio}* el *${etiquetaFecha(prox.fecha)}* a las *${prox.hora}* en *${prox.sucursal}*.`);
+      lineas.push(`Recuerda: tienes *${prox.estudio}* el *${etiquetaFecha(prox.fecha)}* a las *${prox.hora}* en *${prox.sucursal}*.`);
     } else if (est && suc) {
       lineas.push(`La última vez agendaste *${est.nombre}* en *${suc.nombre}, ${suc.ciudad}*.`);
     }
@@ -272,12 +272,12 @@ function saludo(ctx) {
 // Mensajes fuera de tema y consejo médico
 // ---------------------------------------------------------------------------
 const MSG_FUERA_TEMA =
-  'Lamentamos no poder atender esa solicitud. 🙏\n\n' +
+  'Lamentamos no poder atender esa solicitud.\n\n' +
   'Este canal es exclusivo para brindar información y atención sobre los servicios de *Salud Digna*: ' +
   'agenda de citas, consulta de resultados, ubicación de sucursales, y precios y preparación de estudios.';
 
 const MSG_CONSEJO_MEDICO =
-  '👩‍⚕️ Por tu seguridad, este asistente no puede dar diagnósticos, recetar medicamentos ni indicar tratamientos.\n\n' +
+  'Por tu seguridad, este asistente no puede dar diagnósticos, recetar medicamentos ni indicar tratamientos.\n\n' +
   'Te recomendamos acudir con un médico. En *Salud Digna* sí podemos ayudarte a agendar los estudios que te indique ' +
   '(laboratorio, ultrasonido, rayos X, entre otros).';
 
@@ -318,7 +318,7 @@ async function irA(seccion, s, ctx, prefijo = '') {
         if (ctx.pref && /cambi|reprogram|mover|mueve|pasar|pasa/.test(ctx.t)) {
           s.historial.push(s.step);
           s.data = { cita: c.folio, estudio: estudioPorId(c.estudioId), sucursal: sucursalPorId(c.sucursalId), reprogramar: c.folio, pref: ctx.pref };
-          return resolverHorario(s, ctx, [prefijo, `🔁 Va, busco lugar para tu *${c.estudio}* ${descPref(ctx.pref)}.`].filter(Boolean).join('\n'));
+          return resolverHorario(s, ctx, [prefijo, `Va, busco lugar para tu *${c.estudio}* ${descPref(ctx.pref)}.`].filter(Boolean).join('\n'));
         }
         if (/cancel/.test(ctx.t)) {
           s.data = { cita: c.folio };
@@ -354,13 +354,13 @@ async function irA(seccion, s, ctx, prefijo = '') {
 
 function enlacesTexto() {
   return [
-    '🔗 *Enlaces útiles de Salud Digna*',
+    '*Enlaces útiles de Salud Digna*',
     '',
-    `🌐 Sitio oficial: ${LINKS.sitio}`,
-    `📅 Agendar cita en línea: ${LINKS.citas}`,
-    `📄 Resultados (con usuario y contraseña de tu ticket): ${LINKS.resultados}`,
-    `🧾 Facturación: ${LINKS.factura}`,
-    `💬 WhatsApp oficial: ${LINKS.whatsapp}`,
+    `Sitio oficial: ${LINKS.sitio}`,
+    `Agendar cita en línea: ${LINKS.citas}`,
+    `Resultados (con usuario y contraseña de tu ticket): ${LINKS.resultados}`,
+    `Facturación: ${LINKS.factura}`,
+    `WhatsApp oficial: ${LINKS.whatsapp}`,
     '',
     'Escribe *0* para volver al menú.',
   ].join('\n');
@@ -379,8 +379,8 @@ const STEPS = {
       if (n) return irA(mapa[n], s, { ...ctx, t: '', pref: null });
       // Frases completas: "cambia mi cita al viernes", "un ultrasonido en Minerva el jueves a las 9"
       const i = intencion(ctx.t);
-      if (i) return irA(i, s, ctx, `👍 Entendí que quieres *${NOMBRE_INTENCION[i]}*.`);
-      if (ctx.pref || buscarSucursal(ctx.t, ctx).sucursal) return irA('cita', s, ctx, '👍 Entendí que quieres *agendar una cita*.');
+      if (i) return irA(i, s, ctx, `Entendí que quieres *${NOMBRE_INTENCION[i]}*.`);
+      if (ctx.pref || buscarSucursal(ctx.t, ctx).sucursal) return irA('cita', s, ctx, 'Entendí que quieres *agendar una cita*.');
       return null;
     },
   },
@@ -391,11 +391,11 @@ const STEPS = {
     prompt: (s, ctx) => {
       const ult = estudioPorId(ctx.perfil.ultimoEstudioId);
       return [
-        '🧪 *¿Qué estudio necesitas?*',
+        '*¿Qué estudio necesitas?*',
         '',
         ...ESTUDIOS.map((e, i) => `${i + 1}. ${e.nombre} — ${precio(e.precio)}`),
-        ult ? `\n💡 La última vez agendaste *${ult.nombre}* (opción ${ult.id}).` : '',
-        s.data.sucursal ? `📍 Sucursal elegida: *${s.data.sucursal.nombre}, ${s.data.sucursal.ciudad}*` : '',
+        ult ? `\nLa última vez agendaste *${ult.nombre}* (opción ${ult.id}).` : '',
+        s.data.sucursal ? `Sucursal elegida: *${s.data.sucursal.nombre}, ${s.data.sucursal.ciudad}*` : '',
         '\nTambién puedes escribir el nombre, por ejemplo "rayos x".',
       ].filter(Boolean).join('\n') + NAV;
     },
@@ -404,7 +404,7 @@ const STEPS = {
       if (!est) return null;
       s.data.estudio = est;
       absorber(s, ctx);
-      return avanzarCita(s, ctx, `✅ ${est.nombre}.`);
+      return avanzarCita(s, ctx, `Elegiste: *${est.nombre}*.`);
     },
   },
 
@@ -413,11 +413,11 @@ const STEPS = {
     prompt: (s, ctx) => {
       const opts = [];
       const mia = sucursalPorId(ctx.perfil.sucursalId);
-      if (mia) opts.push(['mia', `📍 Mi sucursal de siempre: *${mia.nombre}, ${mia.ciudad}*`]);
-      opts.push(['cerca', '🧭 La más cercana a mí (compartir ubicación)']);
-      opts.push(['ciudad', '🏙️ Elegir por ciudad']);
+      if (mia) opts.push(['mia', `Mi sucursal de siempre: *${mia.nombre}, ${mia.ciudad}*`]);
+      opts.push(['cerca', 'La más cercana a mí (compartir ubicación)']);
+      opts.push(['ciudad', 'Elegir por ciudad']);
       s.data.opcionesDonde = opts.map((o) => o[0]);
-      return `🏥 *¿En qué sucursal quieres tu cita?*\n\n${opts.map((o, i) => `${i + 1}. ${o[1]}`).join('\n')}` + NAV;
+      return `*¿En qué sucursal quieres tu cita?*\n\n${opts.map((o, i) => `${i + 1}. ${o[1]}`).join('\n')}` + NAV;
     },
     handle: (s, ctx) => {
       const n = opcion(ctx.t, s.data.opcionesDonde.length);
@@ -426,7 +426,7 @@ const STEPS = {
       if (!op && /ciudad/.test(ctx.t)) op = 'ciudad';
       if (!op && /siempre|misma|mia/.test(ctx.t) && s.data.opcionesDonde.includes('mia')) op = 'mia';
       if (!op) {
-        const c = elegir(CIUDADES, ctx.t);
+        const c = ctx.op == null ? elegir(CIUDADES, ctx.t) : null; // un número fuera de rango no es una ciudad
         if (c) {
           s.data.ciudad = c;
           absorber(s, ctx);
@@ -443,7 +443,7 @@ const STEPS = {
         const u = ctx.perfil.ubicacion;
         if (u && Date.now() - u.ts < UBIC_VIGENTE_MS) {
           s.data.origen = u;
-          return go(s, 'cita_cercanas', ctx, '📍 Usé la ubicación que me compartiste hace rato.');
+          return go(s, 'cita_cercanas', ctx, 'Usé la ubicación que me compartiste hace rato.');
         }
         return go(s, 'cita_ubicacion', ctx);
       }
@@ -451,12 +451,12 @@ const STEPS = {
     },
     onLocation: (s, ctx) => {
       s.data.origen = ctx.location;
-      return go(s, 'cita_cercanas', ctx, '📍 ¡Gracias, recibí tu ubicación!');
+      return go(s, 'cita_cercanas', ctx, '¡Gracias, recibí tu ubicación!');
     },
   },
 
   cita_ubicacion: {
-    espera: 'estoy esperando tu *ubicación* 📍 (o escribe *ciudad* para elegirla de una lista)',
+    espera: 'estoy esperando tu *ubicación* (o escribe *ciudad* para elegirla de una lista)',
     prompt: () => `${COMO_UBICACION}\n\nSi prefieres, escribe *ciudad* para elegirla de una lista.` + NAV,
     handle: (s, ctx) => {
       if (/ciudad|lista/.test(ctx.t)) return go(s, 'cita_ciudad', ctx);
@@ -470,7 +470,7 @@ const STEPS = {
     },
     onLocation: (s, ctx) => {
       s.data.origen = ctx.location;
-      return go(s, 'cita_cercanas', ctx, '📍 ¡Gracias, recibí tu ubicación!');
+      return go(s, 'cita_cercanas', ctx, '¡Gracias, recibí tu ubicación!');
     },
   },
 
@@ -483,13 +483,13 @@ const STEPS = {
       if (!suc) return null;
       s.data.sucursal = suc;
       absorber(s, ctx);
-      return avanzarCita(s, ctx, `✅ ${suc.nombre}, ${suc.ciudad}.`);
+      return avanzarCita(s, ctx, `Elegiste: *${suc.nombre}, ${suc.ciudad}*.`);
     },
   },
 
   cita_ciudad: {
     espera: 'necesito la *ciudad*: escribe su número o su nombre',
-    prompt: () => `🏙️ *¿En qué ciudad?*\n\n${CIUDADES.map((c, i) => `${i + 1}. ${c.nombre}`).join('\n')}` + NAV,
+    prompt: () => `*¿En qué ciudad?*\n\n${CIUDADES.map((c, i) => `${i + 1}. ${c.nombre}`).join('\n')}` + NAV,
     handle: (s, ctx) => {
       const c = elegir(CIUDADES, ctx.t);
       if (!c) return null;
@@ -502,15 +502,15 @@ const STEPS = {
   cita_sucursal: {
     espera: 'necesito el *número de la sucursal*',
     prompt: (s) =>
-      `🏥 *Sucursales en ${s.data.ciudad.nombre}:*\n\n` +
-      sucursalesDe(s).map((x, i) => `${i + 1}. *${x.nombre}*\n    🕒 ${x.horario}`).join('\n') +
+      `*Sucursales en ${s.data.ciudad.nombre}:*\n\n` +
+      sucursalesDe(s).map((x, i) => `${i + 1}. *${x.nombre}*\n    Horario: ${x.horario}`).join('\n') +
       NAV,
     handle: (s, ctx) => {
       const suc = elegir(sucursalesDe(s), ctx.t) || buscarSucursal(ctx.t, ctx).sucursal;
       if (!suc || suc.ciudadId !== s.data.ciudad.id) return null;
       s.data.sucursal = suc;
       absorber(s, ctx);
-      return avanzarCita(s, ctx, `✅ ${suc.nombre}.`);
+      return avanzarCita(s, ctx, `Elegiste: *${suc.nombre}*.`);
     },
   },
 
@@ -523,17 +523,17 @@ const STEPS = {
       s.data.slots = [];
       const bloques = dias.map((d) => {
         const lineas = d.horas.map((h) => {
-          if (h.libres <= 0) return `      ~${h.hora}~  ⛔ lleno`;
+          if (h.libres <= 0) return `      ~${h.hora}~ lleno`;
           s.data.slots.push({ fecha: d.fecha, hora: h.hora });
-          const estado = h.libres === 1 ? '🟡 último lugar' : `🟢 ${h.libres} lugares`;
-          return `${s.data.slots.length}. ${h.hora}  ${estado}`;
+          const estado = h.libres === 1 ? '(último lugar)' : `(${h.libres} lugares)`;
+          return `${s.data.slots.length}. ${h.hora} ${estado}`;
         });
         return `*${d.etiqueta[0].toUpperCase() + d.etiqueta.slice(1)}*\n${lineas.join('\n')}`;
       });
       return (
-        `🗓️ *Horarios disponibles en ${s.data.sucursal.nombre}*\n🧪 ${s.data.estudio.nombre}\n\n` +
+        `*Horarios disponibles en ${s.data.sucursal.nombre}*\nEstudio: ${s.data.estudio.nombre}\n\n` +
         `${bloques.join('\n\n')}\n\n` +
-        'Responde el *número* del horario o dímelo con tus palabras (ej. "el jueves a la 1pm", "lo más pronto").\n➡️ Escribe *más* para ver otros días.' +
+        'Responde el *número* del horario o dímelo con tus palabras (ej. "el jueves a la 1pm", "lo más pronto").\nEscribe *más* para ver otros días.' +
         NAV
       );
     },
@@ -563,15 +563,15 @@ const STEPS = {
     prompt: (s, ctx) => {
       const { estudio, sucursal, slot, reprogramar } = s.data;
       return [
-        '📝 *Revisa tu cita:*\n',
-        `👤 Paciente: ${ctx.perfil.nombre || ctx.name || 'sin nombre'}`,
-        `🧪 Estudio: ${estudio.nombre}`,
-        `📍 Sucursal: ${sucursal.nombre}, ${sucursal.ciudad}`,
-        `🗓️ Fecha: ${etiquetaFecha(slot.fecha)} a las ${slot.hora}`,
-        `💲 Precio de referencia: ${precio(estudio.precio)}`,
-        `⏱️ Duración aprox.: ${estudio.duracion}`,
-        reprogramar ? `🔁 Esta cita reemplaza a la *${reprogramar}*.` : null,
-        '\n1. ✅ Confirmar\n2. 🕒 Cambiar horario\n3. ❌ Cancelar',
+        '*Revisa tu cita:*\n',
+        `Paciente: ${ctx.perfil.nombre || ctx.name || 'sin nombre'}`,
+        `Estudio: ${estudio.nombre}`,
+        `Sucursal: ${sucursal.nombre}, ${sucursal.ciudad}`,
+        `Fecha: ${etiquetaFecha(slot.fecha)} a las ${slot.hora}`,
+        `Precio de referencia: ${precio(estudio.precio)}`,
+        `Duración aprox.: ${estudio.duracion}`,
+        reprogramar ? `Esta cita reemplaza a la *${reprogramar}*.` : null,
+        '\n1. Confirmar\n2. Cambiar horario\n3. Cancelar',
         '\n_También puedes responder "sí", "mejor a las 9" o "no"._',
       ].filter((x) => x !== null).join('\n');
     },
@@ -583,13 +583,13 @@ const STEPS = {
         if (!p.hora && !p.franja) p.hora = s.data.slot.hora;
         s.data.pref = p;
         s.data.slot = null;
-        return resolverHorario(s, ctx, '🔁 Va, lo cambio.');
+        return resolverHorario(s, ctx, 'Va, lo cambio.');
       }
       if (ctx.op === 1 || afirmativo(ctx.t)) {
         const { estudio, sucursal, slot, reprogramar } = s.data;
         if (!hayLugar(sucursal.id, slot.fecha, slot.hora)) {
           s.step = 'cita_horario';
-          return [`😕 Ups, alguien acaba de ganar ese horario. Elige otro:\n\n${STEPS.cita_horario.prompt(s, ctx)}`];
+          return [`Ups, alguien acaba de ganar ese horario. Elige otro:\n\n${STEPS.cita_horario.prompt(s, ctx)}`];
         }
         const cita = {
           folio: nuevoFolio(),
@@ -613,8 +613,8 @@ const STEPS = {
         reset(s);
         return [
           `✅ *¡Listo! Tu cita quedó ${reprogramar ? 'reprogramada' : 'agendada'}.*\n\n` +
-            `🔖 Folio: *${cita.folio}*\n🧪 ${cita.estudio}\n📍 ${cita.sucursal}\n🗓️ ${etiquetaFecha(cita.fecha)} a las ${cita.hora}\n\n` +
-            `📋 *Preparación:* ${estudio.prep}\n\n🗺️ Cómo llegar: ${LINKS.ruta(ctx.perfil.ubicacion, sucursal)}`,
+            `Folio: *${cita.folio}*\nEstudio: ${cita.estudio}\nSucursal: ${cita.sucursal}\nFecha: ${etiquetaFecha(cita.fecha)} a las ${cita.hora}\n\n` +
+            `*Preparación:* ${estudio.prep}\n\nCómo llegar: ${LINKS.ruta(ctx.perfil.ubicacion, sucursal)}`,
           'Te mandaré un recordatorio un día antes. Lleva una identificación y tu folio.\nEscribe *2* para ver tus citas o *0* para el menú.',
         ];
       }
@@ -625,7 +625,7 @@ const STEPS = {
       }
       if (ctx.op === 3 || negativo(ctx.t)) {
         reset(s);
-        return ['De acuerdo, no agendé nada. 🙂 Escribe *0* para ver el menú cuando quieras.'];
+        return ['De acuerdo, no agendé nada. Escribe *0* para ver el menú cuando quieras.'];
       }
       return null;
     },
@@ -638,11 +638,11 @@ const STEPS = {
       const lista = proximasCitas(ctx.number);
       s.data.misCitas = lista.map((c) => c.folio);
       if (!lista.length) {
-        return '🗓️ No tienes citas próximas.\n\n1. 📅 Agendar una cita' + NAV;
+        return 'No tienes citas próximas.\n\n1. Agendar una cita' + NAV;
       }
       return (
-        `🗓️ *Tus próximas citas:*\n\n` +
-        lista.map((c, i) => `${i + 1}. *${c.estudio}*\n    ${etiquetaFecha(c.fecha)} a las ${c.hora}\n    📍 ${c.sucursal} · 🔖 ${c.folio}`).join('\n\n') +
+        `*Tus próximas citas:*\n\n` +
+        lista.map((c, i) => `${i + 1}. *${c.estudio}*\n    ${etiquetaFecha(c.fecha)} a las ${c.hora}\n    ${c.sucursal} · Folio ${c.folio}`).join('\n\n') +
         '\n\nResponde el *número* de una cita para cambiarla o cancelarla.' +
         NAV
       );
@@ -668,9 +668,9 @@ const STEPS = {
       const c = citas.get(s.data.cita);
       const suc = sucursalPorId(c.sucursalId);
       return (
-        `🔖 *Cita ${c.folio}*\n🧪 ${c.estudio}\n📍 ${c.sucursal}\n🗓️ ${etiquetaFecha(c.fecha)} a las ${c.hora}\n` +
-        `🗺️ Cómo llegar: ${LINKS.ruta(ctx.perfil.ubicacion, suc)}\n\n` +
-        '1. 🔁 Reprogramar\n2. ❌ Cancelar cita\n3. 📋 Ver preparación' +
+        `*Cita ${c.folio}*\nEstudio: ${c.estudio}\nSucursal: ${c.sucursal}\nFecha: ${etiquetaFecha(c.fecha)} a las ${c.hora}\n` +
+        `Cómo llegar: ${LINKS.ruta(ctx.perfil.ubicacion, suc)}\n\n` +
+        '1. Reprogramar\n2. Cancelar cita\n3. Ver preparación' +
         NAV
       );
     },
@@ -679,15 +679,15 @@ const STEPS = {
       // "cámbiala para el viernes a las 9"
       if (ctx.pref) {
         s.data = { cita: c.folio, estudio: estudioPorId(c.estudioId), sucursal: sucursalPorId(c.sucursalId), reprogramar: c.folio, pref: ctx.pref };
-        return resolverHorario(s, ctx, `🔁 Va, busco lugar ${descPref(ctx.pref)}.`);
+        return resolverHorario(s, ctx, `Va, busco lugar ${descPref(ctx.pref)}.`);
       }
       if (ctx.op === 1 || /reprogram|cambiar|cambia|mover/.test(ctx.t)) {
         s.data = { estudio: estudioPorId(c.estudioId), sucursal: sucursalPorId(c.sucursalId), reprogramar: c.folio, desde: 1 };
-        return go(s, 'cita_horario', ctx, '🔁 Elige el nuevo horario:');
+        return go(s, 'cita_horario', ctx, 'Elige el nuevo horario:');
       }
       if (ctx.op === 2 || /cancel/.test(ctx.t)) return go(s, 'cita_cancelar', ctx);
       if (ctx.op === 3 || /preparacion|ayuno|preparo|llevar/.test(ctx.t)) {
-        return [`📋 *Preparación para ${c.estudio}:*\n${estudioPorId(c.estudioId).prep}\n\n1. 🔁 Reprogramar · 2. ❌ Cancelar` + NAV];
+        return [`*Preparación para ${c.estudio}:*\n${estudioPorId(c.estudioId).prep}\n\n1. Reprogramar · 2. Cancelar` + NAV];
       }
       return null;
     },
@@ -695,14 +695,14 @@ const STEPS = {
 
   cita_cancelar: {
     espera: 'responde *1* para cancelar la cita o *2* para conservarla',
-    prompt: (s) => `⚠️ ¿Seguro que quieres cancelar la cita *${s.data.cita}*?\n\n1. Sí, cancelarla\n2. No, conservarla`,
+    prompt: (s) => `¿Seguro que quieres cancelar la cita *${s.data.cita}*?\n\n1. Sí, cancelarla\n2. No, conservarla`,
     handle: async (s, ctx) => {
       if (ctx.op === 1 || afirmativo(ctx.t) || /^(cancelar|cancelala|si cancelala)$/.test(ctx.t)) {
         const folio = s.data.cita;
         citas.update(folio, { estado: 'cancelada', canceladaEn: new Date().toISOString() });
         await emit('appointment_cancelled', { patientId: ctx.number, folio });
         reset(s);
-        return [`🗑️ Cita *${folio}* cancelada. Ese horario quedó libre para otro paciente.\n\nEscribe *1* para agendar otra o *0* para el menú.`];
+        return [`Cita *${folio}* cancelada. Ese horario quedó libre para otro paciente.\n\nEscribe *1* para agendar otra o *0* para el menú.`];
       }
       if (ctx.op === 2 || negativo(ctx.t) || /conservar|dejala/.test(ctx.t)) return atras(s, ctx);
       return null;
@@ -715,8 +715,8 @@ const STEPS = {
     prompt: (s, ctx) => {
       const recientes = citas.delPaciente(ctx.number).slice(-3).map((c) => c.folio);
       return (
-        '📄 *Consulta de resultados*\n\nEscribe tu *folio* (ej. SD-DEMO-0001).' +
-        (recientes.length ? `\n💡 Tus folios recientes: ${recientes.join(', ')}` : '') +
+        '*Consulta de resultados*\n\nEscribe tu *folio* (ej. SD-DEMO-0001).' +
+        (recientes.length ? `\nTus folios recientes: ${recientes.join(', ')}` : '') +
         `\n\nTambién puedes verlos en línea con el usuario y contraseña de tu ticket:\n${LINKS.resultados}` +
         NAV
       );
@@ -725,25 +725,25 @@ const STEPS = {
       const folio = String(ctx.text || '').trim().toUpperCase().replace(/\s+/g, '');
       if (!esFolio(folio)) return null;
       if (folio === 'SD-DEMO-0001') {
-        return [`✅ Tus resultados del folio *${folio}* ya están listos.\n📥 Descárgalos aquí (demo): https://resultados.ejemplo/${folio}\n\n¿Otro folio? Escríbelo, o *0* para el menú.`];
+        return [`✅ Tus resultados del folio *${folio}* ya están listos.\nDescárgalos aquí (demo): https://resultados.ejemplo/${folio}\n\n¿Otro folio? Escríbelo, o *0* para el menú.`];
       }
       const c = citas.get(folio);
-      if (!c) return [`🔎 No encontré el folio *${folio}*. Revisa que esté bien escrito o escribe *agente* para que te ayude una persona.`];
+      if (!c) return [`No encontré el folio *${folio}*. Revisa que esté bien escrito o escribe *agente* para que te ayude una persona.`];
       if (c.estado === 'cancelada') return [`ℹ️ La cita *${folio}* fue cancelada, por eso no tiene resultados.`];
-      if (c.estado === 'resultados listos') return [`✅ Los resultados de *${folio}* (${c.estudio}) ya están listos.\n📥 ${LINKS.resultados}`];
+      if (c.estado === 'resultados listos') return [`✅ Los resultados de *${folio}* (${c.estudio}) ya están listos.\nConsúltalos en: ${LINKS.resultados}`];
       const est = estudioPorId(c.estudioId);
       return [
-        `🕒 Tu estudio *${c.estudio}* está programado para el *${etiquetaFecha(c.fecha)}* a las ${c.hora}.\n` +
-          `Los resultados suelen estar listos *${est?.entrega || 'en pocos días'}*. Te avisaré por aquí. 🔔`,
+        `Tu estudio *${c.estudio}* está programado para el *${etiquetaFecha(c.fecha)}* a las ${c.hora}.\n` +
+          `Los resultados suelen estar listos *${est?.entrega || 'en pocos días'}*. Te avisaré por aquí.`,
       ];
     },
   },
 
   // ----------------------------- Sucursales -----------------------------
   cercana: {
-    espera: 'estoy esperando tu *ubicación* 📍, o el nombre de tu *ciudad*',
+    espera: 'estoy esperando tu *ubicación* , o el nombre de tu *ciudad*',
     prompt: () =>
-      `📍 *Encuentra tu sucursal más cercana*\n\n${COMO_UBICACION}\n\nO escribe tu ciudad (Culiacán, Guadalajara, CDMX o Monterrey), o *ciudad* para ver la lista.` +
+      `*Encuentra tu sucursal más cercana*\n\n${COMO_UBICACION}\n\nO escribe tu ciudad (Culiacán, Guadalajara, CDMX o Monterrey), o *ciudad* para ver la lista.` +
       NAV,
     handle: (s, ctx) => {
       if (/^(ciudad|lista|ciudades)$/.test(ctx.t)) return go(s, 'sucursal_ciudad', ctx);
@@ -754,7 +754,7 @@ const STEPS = {
     },
     onLocation: (s, ctx) => {
       s.data.origen = ctx.location;
-      return go(s, 'cercana_lista', ctx, '📍 ¡Gracias, recibí tu ubicación!');
+      return go(s, 'cercana_lista', ctx, '¡Gracias, recibí tu ubicación!');
     },
   },
 
@@ -765,13 +765,13 @@ const STEPS = {
       const suc = elegir(s.data.cercanas.map(sucursalPorId), ctx.t);
       if (!suc) return null;
       s.data = { sucursal: suc };
-      return go(s, 'cita_estudio', ctx, `✅ ${suc.nombre}, ${suc.ciudad}.`);
+      return go(s, 'cita_estudio', ctx, `Elegiste: *${suc.nombre}, ${suc.ciudad}*.`);
     },
   },
 
   sucursal_ciudad: {
     espera: 'necesito la *ciudad*: escribe su número o su nombre',
-    prompt: () => `🏙️ *¿De qué ciudad?*\n\n${CIUDADES.map((c, i) => `${i + 1}. ${c.nombre}`).join('\n')}` + NAV,
+    prompt: () => `*¿De qué ciudad?*\n\n${CIUDADES.map((c, i) => `${i + 1}. ${c.nombre}`).join('\n')}` + NAV,
     handle: (s, ctx) => {
       const c = elegir(CIUDADES, ctx.t);
       if (!c) return null;
@@ -783,9 +783,9 @@ const STEPS = {
   sucursal_lista: {
     espera: 'responde el *número* de una sucursal para agendar ahí',
     prompt: (s, ctx) =>
-      `🏥 *Sucursales en ${s.data.ciudad.nombre}:*\n\n` +
+      `*Sucursales en ${s.data.ciudad.nombre}:*\n\n` +
       sucursalesDe(s)
-        .map((x, i) => `${i + 1}. *${x.nombre}*\n    🕒 ${x.horario}\n    🗺️ ${LINKS.ruta(ctx.perfil.ubicacion, x)}`)
+        .map((x, i) => `${i + 1}. *${x.nombre}*\n    Horario: ${x.horario}\n    Cómo llegar: ${LINKS.ruta(ctx.perfil.ubicacion, x)}`)
         .join('\n\n') +
       '\n\n¿Quieres agendar en alguna? Responde su *número*.' +
       NAV,
@@ -793,7 +793,7 @@ const STEPS = {
       const suc = elegir(sucursalesDe(s), ctx.t);
       if (!suc) return null;
       s.data = { sucursal: suc };
-      return go(s, 'cita_estudio', ctx, `✅ ${suc.nombre}, ${suc.ciudad}.`);
+      return go(s, 'cita_estudio', ctx, `Elegiste: *${suc.nombre}, ${suc.ciudad}*.`);
     },
   },
 
@@ -801,7 +801,7 @@ const STEPS = {
   estudios: {
     espera: 'necesito el *estudio*: escribe su número o su nombre',
     prompt: () =>
-      `🧪 *Estudios y precios de referencia*\n\n${ESTUDIOS.map((e, i) => `${i + 1}. ${e.nombre} — ${precio(e.precio)}`).join('\n')}\n\n` +
+      `*Estudios y precios de referencia*\n\n${ESTUDIOS.map((e, i) => `${i + 1}. ${e.nombre} — ${precio(e.precio)}`).join('\n')}\n\n` +
       'Responde el número para ver en qué consiste y cómo prepararte.' +
       NAV,
     handle: (s, ctx) => {
@@ -817,9 +817,9 @@ const STEPS = {
     prompt: (s) => {
       const e = s.data.estudio;
       return (
-        `🧪 *${e.nombre}*\n\n${e.descripcion}\n\n` +
-        `⏱️ Duración: ${e.duracion}\n📄 Resultados: ${e.entrega}\n💲 Precio de referencia: ${precio(e.precio)}\n\n` +
-        `📋 *Preparación:* ${e.prep}\n\n1. 📅 Agendar este estudio\n2. 🔎 Ver otro estudio` +
+        `*${e.nombre}*\n\n${e.descripcion}\n\n` +
+        `Duración: ${e.duracion}\nResultados: ${e.entrega}\nPrecio de referencia: ${precio(e.precio)}\n\n` +
+        `*Preparación:* ${e.prep}\n\n1. Agendar este estudio\n2. Ver otro estudio` +
         NAV
       );
     },
@@ -841,12 +841,12 @@ const STEPS = {
   agente: {
     espera: '',
     prompt: () =>
-      '👩‍⚕️ Te estoy conectando con un agente. En un momento te atiende.\nPuedes ir escribiendo tu duda.\n\n_Escribe *0* para regresar al asistente._',
+      'Te estoy conectando con un agente. En un momento te atiende.\nPuedes ir escribiendo tu duda.\n\n_Escribe *0* para regresar al asistente._',
     handle: async (s, ctx) => {
       await emit('agent_message', { patientId: ctx.number, name: ctx.name, text: ctx.text });
       if (s.data.avisado) return [];
       s.data.avisado = true;
-      return ['📨 Recibido. Un agente te responderá por aquí en breve.'];
+      return ['Recibido. Un agente te responderá por aquí en breve.'];
     },
   },
 };
@@ -885,7 +885,7 @@ export async function handleMessage({ number, name, text, location }) {
     if (step?.onLocation) return step.onLocation(s, ctx);
     if (s.step === 'nuevo') reset(s);
     s.data = { origen: location };
-    return go(s, 'cercana_lista', ctx, '📍 ¡Gracias por tu ubicación! Estas son las sucursales más cercanas:');
+    return go(s, 'cercana_lista', ctx, '¡Gracias por tu ubicación! Estas son las sucursales más cercanas:');
   }
 
   const cmd = comando(t);
@@ -895,7 +895,7 @@ export async function handleMessage({ number, name, text, location }) {
     if (cmd === 'menu' || cmd === 'salir') {
       await emit('handoff_closed', { patientId: number });
       reset(s);
-      return [`🤖 Regresaste con el asistente virtual.\n\n${menuTexto(ctx)}`];
+      return [`Regresaste con el asistente virtual.\n\n${menuTexto(ctx)}`];
     }
     return STEPS.agente.handle(s, ctx);
   }
@@ -921,19 +921,19 @@ export async function handleMessage({ number, name, text, location }) {
     case 'saludo':
       if (s.step === 'menu') return [`${saludo(ctx)}\n\n${menuTexto(ctx)}`];
       // A mitad de un trámite: no perdemos el avance
-      return [`👋 ¡Hola! Seguimos donde nos quedamos (escribe *0* si prefieres empezar de nuevo).\n\n${STEPS[s.step].prompt(s, ctx)}`];
+      return [`¡Hola! Seguimos donde nos quedamos (escribe *0* si prefieres empezar de nuevo).\n\n${STEPS[s.step].prompt(s, ctx)}`];
     case 'atras':
       return atras(s, ctx);
     case 'salir':
       reset(s, 'nuevo');
       await emit('session_closed', { patientId: number });
-      return [`¡Gracias por escribirnos${primerNombre(p.nombre) ? ', ' + primerNombre(p.nombre) : ''}! 💚 Cuando quieras, escribe *hola* y aquí estaré.`];
+      return [`¡Gracias por escribirnos${primerNombre(p.nombre) ? ', ' + primerNombre(p.nombre) : ''}! Cuando quieras, escribe *hola* y aquí estaré.`];
     case 'gracias':
-      return ['¡Con mucho gusto! 😊 ¿Algo más? Escribe *0* para ver el menú o *salir* para terminar.'];
+      return ['¡Con mucho gusto! ¿Algo más? Escribe *0* para ver el menú o *salir* para terminar.'];
     case 'ayuda':
       return [
         '🆘 *Cómo usarme:*\n• Responde con el *número* de la opción.\n• O escríbeme normal: "quiero agendar un ultrasonido", "¿cuánto cuesta la mastografía?", "sucursales en Monterrey".\n' +
-          '• Comparte tu *ubicación* 📍 para ver tu sucursal más cercana.\n• *atrás* regresa un paso, *0* va al menú, *salir* termina.\n• *agente* te comunica con una persona.',
+          '• Comparte tu *ubicación* para ver tu sucursal más cercana.\n• *atrás* regresa un paso, *0* va al menú, *salir* termina.\n• *agente* te comunica con una persona.',
       ];
   }
 
@@ -949,7 +949,7 @@ export async function handleMessage({ number, name, text, location }) {
   if (s.step.startsWith('cita_') && !['cita_confirmar', 'cita_detalle', 'cita_cancelar'].includes(s.step) && ctx.op == null) {
     const antes = huella(s);
     absorber(s, ctx);
-    if (huella(s) !== antes) return avanzarCita(s, ctx, `📝 Anotado:\n${resumenCita(s)}`);
+    if (huella(s) !== antes) return avanzarCita(s, ctx, `Anotado:\n${resumenCita(s)}`);
   }
 
   // 8) Mensaje fuera de lugar: ¿escribió un folio o pidió otra cosa?
@@ -957,11 +957,11 @@ export async function handleMessage({ number, name, text, location }) {
     s.historial.push(s.step);
     s.step = 'resultados';
     const r = await STEPS.resultados.handle(s, ctx);
-    return [`📄 Veo que escribiste un folio, te ayudo con eso:\n\n${r[0]}`];
+    return [`Veo que escribiste un folio, te ayudo con eso:\n\n${r[0]}`];
   }
   if (!esNumero(t)) {
     const i = intencion(t);
-    if (i) return irA(i, s, ctx, `👍 Entendí que quieres *${NOMBRE_INTENCION[i]}*.`);
+    if (i) return irA(i, s, ctx, `Entendí que quieres *${NOMBRE_INTENCION[i]}*.`);
   }
 
   // 9) Preguntas de diagnóstico/medicación o temas ajenos a Salud Digna
@@ -977,7 +977,7 @@ export async function handleMessage({ number, name, text, location }) {
   // 10) Pregunta sobre Salud Digna que el asistente no cubre (promociones, lentes, nutrición…)
   if (s.step === 'menu' && t.split(' ').length >= 2 && !esFueraDeTema(ctx)) {
     return [
-      'Sobre ese tema no tengo información en este asistente. 📌\n\n' +
+      'Sobre ese tema no tengo información en este asistente.\n\n' +
         `Puedes consultarlo en el sitio oficial: ${LINKS.sitio}\no escribir *agente* para que una persona te atienda.\n\n` +
         'También puedo ayudarte con citas, resultados, sucursales y estudios: escribe *0* para ver el menú.',
     ];
@@ -988,8 +988,8 @@ export async function handleMessage({ number, name, text, location }) {
   const eco = String(text || '').trim();
   const ecoCorto = eco.length > 40 ? eco.slice(0, 40) + '…' : eco;
   let msg = eco
-    ? `🤔 No entendí *"${ecoCorto}"* en este paso.\nAhora mismo ${step.espera}.`
-    : `🤔 Ese tipo de mensaje no lo puedo leer todavía. Ahora mismo ${step.espera}.`;
+    ? `No entendí *"${ecoCorto}"* en este paso.\nAhora mismo ${step.espera}.`
+    : `Ese tipo de mensaje no lo puedo leer todavía. Ahora mismo ${step.espera}.`;
   if (s.errores >= 3) msg += '\n\n¿Prefieres que te atienda una persona? Escribe *agente*.';
   return s.errores === 1 || s.errores >= 3 ? [`${msg}\n\n${step.prompt(s, ctx)}`] : [msg];
 }

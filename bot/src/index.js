@@ -70,7 +70,7 @@ async function procesar(m, origen) {
     await responder(m.number, respuestas);
   } catch (err) {
     console.error('[bot] error procesando mensaje', err);
-    await responder(m.number, ['Ocurrió un error 😓. Escribe *menu* para intentar de nuevo.']);
+    await responder(m.number, ['Ocurrió un error. Escribe *menu* para intentar de nuevo.']);
   }
 }
 
@@ -108,7 +108,7 @@ app.post('/agent/reply', async (req, res) => {
   if (!number || !text) return res.status(400).json({ error: 'number y text son obligatorios' });
   const s = getSession(String(number));
   if (s.step !== 'agente') s.step = 'agente';
-  await responder(String(number), [`👩‍⚕️ ${agente || 'Agente'}: ${text}`]);
+  await responder(String(number), [`*${agente || 'Agente'}:* ${text}`]);
   res.json({ ok: true });
 });
 

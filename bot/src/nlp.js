@@ -104,7 +104,8 @@ export function fueraDeTema(t) {
 }
 
 const EMERGENCIA = [
-  'dolor de pecho', 'dolor en el pecho', 'no puedo respirar', 'me falta el aire', 'desmayo', 'se desmayo',
+  'dolor de pecho', 'dolor en el pecho', 'duele el pecho', 'duele mucho el pecho', 'presion en el pecho', 'opresion en el pecho',
+  'no puedo hablar', 'se me duerme la cara', 'perdi el conocimiento', 'mucho sangrado', 'no deja de sangrar', 'me estoy ahogando', 'no puedo respirar', 'me falta el aire', 'desmayo', 'se desmayo',
   'convulsion', 'sangrado abundante', 'infarto', 'emergencia', 'urgencia', 'me quiero morir', 'suicid',
 ];
 export const esEmergencia = (t) => EMERGENCIA.some((k) => t.includes(k));
