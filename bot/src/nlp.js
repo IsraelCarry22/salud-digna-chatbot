@@ -53,6 +53,56 @@ export function intencion(t) {
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// Mensajes fuera de tema
+// ---------------------------------------------------------------------------
+// Palabras que indican que el mensaje SÍ tiene que ver con salud o con Salud Digna
+const VOCAB_SALUD = [
+  'salud', 'digna', 'medico', 'medica', 'doctor', 'doctora', 'enfermera', 'clinica', 'laboratorio', 'estudio', 'estudios',
+  'analisis', 'examen', 'examenes', 'prueba', 'sangre', 'orina', 'glucosa', 'colesterol', 'trigliceridos', 'quimica',
+  'ultrasonido', 'eco', 'rayos', 'radiografia', 'tomografia', 'resonancia', 'mastografia', 'papanicolaou', 'electro',
+  'electrocardiograma', 'densitometria', 'lentes', 'optometria', 'vista', 'nutricion', 'nutriologo', 'embarazo', 'embarazada',
+  'cita', 'citas', 'agendar', 'resultado', 'resultados', 'folio', 'ticket', 'factura', 'sucursal', 'sucursales', 'horario',
+  'horarios', 'precio', 'precios', 'costo', 'cuesta', 'ayuno', 'preparacion', 'paciente', 'consulta', 'diagnostico',
+  'enfermedad', 'sintoma', 'sintomas', 'dolor', 'duele', 'presion', 'diabetes', 'corazon', 'pulmon', 'cancer', 'vacuna',
+  'covid', 'agente', 'asesor', 'ubicacion', 'direccion', 'promocion', 'descuento', 'paquete', 'check', 'chequeo',
+];
+// Temas que claramente no corresponden a este canal
+const FUERA_TEMA = [
+  'pizza', 'hamburguesa', 'tacos', 'comida', 'restaurante', 'pedido', 'ordenar', 'domicilio', 'uber', 'didi', 'rappi',
+  'chiste', 'chistes', 'cancion', 'musica', 'pelicula', 'peliculas', 'serie', 'netflix', 'juego', 'videojuego', 'futbol',
+  'partido', 'apuesta', 'clima', 'tarea', 'novia', 'novio', 'ligar', 'amor', 'politica', 'presidente', 'elecciones',
+  'prestamo', 'credito', 'bitcoin', 'criptomoneda', 'vender', 'comprar', 'celular', 'iphone', 'carro', 'boletos', 'viaje',
+  'hotel', 'vuelo', 'trabajo', 'empleo', 'vacante', 'programar', 'codigo', 'poema', 'cuento', 'receta de cocina',
+];
+// Preguntas de salud que el bot no debe responder (diagnóstico o medicación)
+const CONSEJO_MEDICO = [
+  'que medicamento', 'que medicina', 'que pastilla', 'que tomo', 'que me tomo', 'puedo tomar', 'me recetas', 'recetame',
+  'receta medica', 'que tengo', 'es grave', 'diagnosticame', 'dosis', 'antibiotico', 'remedio',
+];
+const RELLENO_TEMA = new Set([
+  'hola', 'buenas', 'buenos', 'dias', 'tardes', 'noches', 'que', 'tal', 'quisiera', 'quiero', 'queria', 'me', 'gustaria',
+  'una', 'un', 'unos', 'unas', 'el', 'la', 'los', 'las', 'de', 'del', 'a', 'al', 'en', 'para', 'por', 'con', 'y', 'o', 'mi',
+  'tu', 'su', 'es', 'se', 'te', 'lo', 'le', 'puedes', 'puede', 'podrias', 'necesito', 'oye', 'disculpa', 'favor', 'porfa',
+  'ayudame', 'ayuda', 'saber', 'como', 'cual', 'donde', 'cuando', 'hay', 'tienen', 'tienes', 'si', 'no', 'muy', 'mas',
+]);
+
+export function pideConsejoMedico(t) {
+  return CONSEJO_MEDICO.some((k) => (k.includes(' ') ? t.includes(k) : t.split(' ').includes(k)));
+}
+
+// true si el mensaje no tiene nada que ver con los servicios de Salud Digna
+export function fueraDeTema(t) {
+  const palabras = t.split(' ').filter(Boolean);
+  const sinPlural = (w) => w.replace(/(es|s)$/, '');
+  const tiene = (lista) =>
+    lista.some((k) => (k.includes(' ') ? t.includes(k) : palabras.some((w) => w === k || sinPlural(w) === k || (k.length >= 6 && w.startsWith(k)))));
+  if (tiene(VOCAB_SALUD)) return false;
+  if (tiene(FUERA_TEMA)) return true;
+  const utiles = palabras.filter((w) => !RELLENO_TEMA.has(w) && !/^\d+$/.test(w));
+  return utiles.length >= 2; // una frase con contenido pero sin nada de salud
+}
+
 const EMERGENCIA = [
   'dolor de pecho', 'dolor en el pecho', 'no puedo respirar', 'me falta el aire', 'desmayo', 'se desmayo',
   'convulsion', 'sangrado abundante', 'infarto', 'emergencia', 'urgencia', 'me quiero morir', 'suicid',

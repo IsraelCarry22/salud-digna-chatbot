@@ -9,7 +9,7 @@ import { LINKS, ESTUDIOS, CIUDADES, TODAS_SUCURSALES, sucursalPorId, estudioPorI
 import { getSession, reset } from './sessions.js';
 import { perfil, actualizarPerfil, citas } from './store.js';
 import { disponibilidad, hayLugar, nuevoFolio, proximasCitas, etiquetaFecha } from './agenda.js';
-import { norm, esNumero, comando, intencion, esEmergencia, elegir, distanciaKm, esFolio } from './nlp.js';
+import { norm, esNumero, comando, intencion, esEmergencia, elegir, distanciaKm, esFolio, fueraDeTema, pideConsejoMedico } from './nlp.js';
 import { opcion, afirmativo, negativo, preferenciaHorario, diasDesdeHoy, amPm, horaBonita } from './entender.js';
 import { emit } from './orchestrator.js';
 
@@ -266,6 +266,27 @@ function saludo(ctx) {
     }
   }
   return lineas.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Mensajes fuera de tema y consejo médico
+// ---------------------------------------------------------------------------
+const MSG_FUERA_TEMA =
+  'Lamentamos no poder atender esa solicitud. 🙏\n\n' +
+  'Este canal es exclusivo para brindar información y atención sobre los servicios de *Salud Digna*: ' +
+  'agenda de citas, consulta de resultados, ubicación de sucursales, y precios y preparación de estudios.';
+
+const MSG_CONSEJO_MEDICO =
+  '👩‍⚕️ Por tu seguridad, este asistente no puede dar diagnósticos, recetar medicamentos ni indicar tratamientos.\n\n' +
+  'Te recomendamos acudir con un médico. En *Salud Digna* sí podemos ayudarte a agendar los estudios que te indique ' +
+  '(laboratorio, ultrasonido, rayos X, entre otros).';
+
+// ¿El mensaje no tiene relación con Salud Digna? (no es comando, intención, estudio, ciudad, sucursal, horario ni folio)
+function esFueraDeTema(ctx) {
+  const t = ctx.t;
+  if (!t || ctx.op != null || ctx.pref || ctx.location || esFolio(ctx.text)) return false;
+  if (intencion(t) || elegir(ESTUDIOS, t) || elegir(CIUDADES, t) || buscarSucursal(t, ctx).sucursal) return false;
+  return fueraDeTema(t);
 }
 
 const NOMBRE_INTENCION = {
@@ -884,6 +905,11 @@ export async function handleMessage({ number, name, text, location }) {
     reset(s);
     const i = cmd ? null : intencion(t);
     if (i) return irA(i, s, ctx, saludo(ctx));
+    if (!cmd && pideConsejoMedico(t)) return [`${saludo(ctx)}\n\n${MSG_CONSEJO_MEDICO}\n\n${menuTexto(ctx)}`];
+    if (!cmd && esFueraDeTema(ctx)) {
+      await emit('off_topic', { patientId: number, text });
+      return [`${saludo(ctx)}\n\n${MSG_FUERA_TEMA}\n\n${menuTexto(ctx)}`];
+    }
     return [`${saludo(ctx)}\n\n${menuTexto(ctx)}`];
   }
 
@@ -938,7 +964,26 @@ export async function handleMessage({ number, name, text, location }) {
     if (i) return irA(i, s, ctx, `👍 Entendí que quieres *${NOMBRE_INTENCION[i]}*.`);
   }
 
-  // 9) No se entendió: lo mencionamos y repetimos lo que esperamos
+  // 9) Preguntas de diagnóstico/medicación o temas ajenos a Salud Digna
+  const continuar = s.step === 'menu' ? 'Escribe el número de la opción que necesitas o *0* para ver el menú.' : `Si quieres continuar con tu trámite, ${step.espera}.`;
+  if (pideConsejoMedico(t)) return [`${MSG_CONSEJO_MEDICO}\n\n${continuar}`];
+  if (esFueraDeTema(ctx)) {
+    s.fueraDeTema = (s.fueraDeTema || 0) + 1;
+    await emit('off_topic', { patientId: number, text, veces: s.fueraDeTema });
+    const extra = s.fueraDeTema >= 3 ? '\n\nSi tienes otra duda relacionada con Salud Digna, escribe *agente* y una persona te atenderá.' : '';
+    return [`${MSG_FUERA_TEMA}\n\n${continuar}${extra}`];
+  }
+
+  // 10) Pregunta sobre Salud Digna que el asistente no cubre (promociones, lentes, nutrición…)
+  if (s.step === 'menu' && t.split(' ').length >= 2 && !esFueraDeTema(ctx)) {
+    return [
+      'Sobre ese tema no tengo información en este asistente. 📌\n\n' +
+        `Puedes consultarlo en el sitio oficial: ${LINKS.sitio}\no escribir *agente* para que una persona te atienda.\n\n` +
+        'También puedo ayudarte con citas, resultados, sucursales y estudios: escribe *0* para ver el menú.',
+    ];
+  }
+
+  // 11) No se entendió: lo mencionamos y repetimos lo que esperamos
   s.errores = (s.errores || 0) + 1;
   const eco = String(text || '').trim();
   const ecoCorto = eco.length > 40 ? eco.slice(0, 40) + '…' : eco;

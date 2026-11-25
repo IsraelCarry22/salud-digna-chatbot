@@ -75,6 +75,7 @@ En el panel izquierdo puedes crear varios pacientes (números distintos) para si
 | **Horarios con cupo** | Muestra días y horas con 🟢 lugares / 🟡 último lugar / ⛔ lleno; `más` para ver otros días. Si alguien gana el horario, avisa |
 | **Mis citas** | Ver, reprogramar (libera el horario anterior) o cancelar |
 | **Ubicación** | Con la ubicación de WhatsApp (`locationMessage`) calcula las sucursales más cercanas (Haversine), da el link de la ruta en Google Maps y el de las clínicas reales cerca del paciente |
+| **Fuera de tema** | Si escriben algo ajeno (pizza, chistes, fútbol…) responde que el canal es exclusivo para los servicios de Salud Digna, sin perder el trámite en curso, y manda el evento `off_topic`. Preguntas de diagnóstico o medicamentos reciben un aviso de que debe consultar a un médico. Temas de Salud Digna que el bot no cubre (promociones, lentes) se canalizan al sitio oficial o a un agente |
 | **Emergencias** | "dolor de pecho", "no puedo respirar", etc. → indica llamar al 911 y manda alerta `emergency_flag` al orquestador |
 | **Agente humano** | Handoff con confirmación al paciente; el call center contesta con `POST /agent/reply` |
 
