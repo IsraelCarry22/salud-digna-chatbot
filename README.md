@@ -100,6 +100,8 @@ En el teléfono virtual:
 | `src/sessions.js` | En qué paso va cada conversación (expira a los 30 min) |
 | `src/data.js` | Enlaces, estudios, ciudades y sucursales |
 | `src/orchestrator.js` | Envía eventos al orquestador omnicanal |
+| `src/meta.js` | WhatsApp Cloud API de Meta: webhook, firma, envío, leído/escribiendo, plantillas |
+| `src/canales.js` | Responde a cada paciente por su canal (Meta o Evolution/simulador) |
 
 ## 4. Endpoints para el orquestador / call center
 
@@ -128,6 +130,56 @@ docker compose --profile evolution up -d --build
 Levanta Evolution API + PostgreSQL + Redis, con el webhook global apuntando al bot. Manager: http://localhost:8080/manager (usa tu `EVOLUTION_API_KEY`).
 
 Para **no** escanear QR con tu teléfono, crea la instancia con la integración **WHATSAPP-BUSINESS** (Cloud API de Meta con su número de prueba gratuito) en vez de WHATSAPP-BAILEYS. Los datos que pide (token, phone number ID, business ID) salen de tu app en developers.facebook.com; revisa la documentación de Evolution para los campos exactos de tu versión.
+
+## 6. WhatsApp real con la Cloud API de Meta (oficial, sin vincular tu teléfono)
+
+El bot atiende **al mismo tiempo** el simulador y WhatsApp real: a cada paciente le responde por el canal del que le escribió.
+
+```
+WhatsApp del paciente ──► Meta ──► https://….trycloudflare.com/meta/webhook ──► bot :3001
+                                                                                   │
+WhatsApp del paciente ◄── Meta ◄── graph.facebook.com/{phone_number_id}/messages ◄──┘
+```
+
+**1. Crea la app en Meta**
+1. Entra a https://developers.facebook.com → *Mis apps* → *Crear app* → tipo **Empresa (Business)** → agrega el producto **WhatsApp**.
+2. En **WhatsApp → API Setup** copia el **token de acceso temporal** y el **Phone number ID** (el ID, no el número).
+3. En el campo **To**, agrega tu número personal y confírmalo con el código que te llega. Puedes agregar hasta 5 números para pruebas.
+4. En **Configuración de la app → Básica** copia el **App Secret**.
+
+**2. Llena el `.env`**
+```
+META_TOKEN=EAA...
+META_PHONE_NUMBER_ID=1234567890
+META_VERIFY_TOKEN=saluddigna-verify     # inventado por ti; lo pegarás en Meta
+META_APP_SECRET=abc123...
+```
+
+**3. Levanta el bot con el túnel HTTPS**
+```bash
+docker compose --profile meta up -d --build
+docker compose logs tunel        # busca la línea con https://algo.trycloudflare.com
+docker compose logs bot          # debe decir "WhatsApp Cloud API (Meta) activa"
+```
+
+**4. Registra el webhook en Meta**
+1. **WhatsApp → Configuración → Webhook → Editar**
+   - URL de devolución de llamada: `https://algo.trycloudflare.com/meta/webhook`
+   - Token de verificación: el mismo `META_VERIFY_TOKEN`
+   - *Verificar y guardar* (en los logs del bot verás `webhook verificado ✅`).
+2. En **Campos del webhook**, suscríbete a **messages**.
+
+**5. Pruébalo:** desde tu WhatsApp escríbele "hola" al número de prueba de Meta.
+
+| Ojo con | Qué pasa | Qué hacer |
+|---|---|---|
+| Token temporal | Caduca a las 24 h (error 190 en los logs) | Genera otro, o crea un token de *usuario del sistema* en Meta Business para la demo |
+| Número de prueba | Solo responde a los 5 números de la lista (error 131030) | Agrega el número en *API Setup → To* |
+| Ventana de 24 h | Solo puedes escribir libremente 24 h después del último mensaje del paciente (error 131047) | Para recordatorios usa `POST /notify` con `"plantilla": true` (manda `hello_world` u otra plantilla aprobada) |
+| URL del túnel | Cambia cada vez que reinicias el contenedor `tunel` | Vuelve a pegarla en Meta, o usa ngrok o un túnel con nombre de Cloudflare |
+| Números de México | Meta los manda como `521…`, pero para enviar se usa `52…` | El bot lo convierte solo (`META_MX_QUITAR_1=true`) |
+
+Lo que ya hace con Meta: verifica la firma `X-Hub-Signature-256` de cada mensaje, marca como leído y muestra "escribiendo…", entiende texto, ubicación, respuestas a botones y listas, y avisa cuando llega audio o sticker. El estado de ambos canales se ve en `GET /health`.
 
 ## Correr sin Docker (opcional, requiere Node 20+)
 

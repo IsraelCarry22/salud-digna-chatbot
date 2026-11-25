@@ -19,6 +19,14 @@ services:
       EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-saluddigna}
       ORCHESTRATOR_URL: ${ORCHESTRATOR_URL:-}
       DATA_DIR: /app/data
+      # WhatsApp Cloud API (Meta). Si META_TOKEN y META_PHONE_NUMBER_ID están vacíos, queda desactivada.
+      META_TOKEN: ${META_TOKEN:-}
+      META_PHONE_NUMBER_ID: ${META_PHONE_NUMBER_ID:-}
+      META_VERIFY_TOKEN: ${META_VERIFY_TOKEN:-saluddigna-verify}
+      META_APP_SECRET: ${META_APP_SECRET:-}
+      META_API_VERSION: ${META_API_VERSION:-v25.0}
+      META_TEMPLATE: ${META_TEMPLATE:-hello_world}
+      META_TEMPLATE_LANG: ${META_TEMPLATE_LANG:-en_US}
     volumes:
       - bot_data:/app/data   # memoria del bot (perfiles y citas) sobrevive reinicios
     depends_on:
@@ -39,6 +47,22 @@ services:
       AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-cambia-esta-clave}
       EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-saluddigna}
       WEBHOOK_URL: http://bot:3001/webhook
+
+  # ------------------------------------------------------------------
+  # Túnel HTTPS público para que Meta pueda llegar al bot (opcional).
+  #   docker compose --profile meta up -d --build
+  #   docker compose logs tunel   -> copia la URL https://….trycloudflare.com
+  # Webhook en Meta: https://….trycloudflare.com/meta/webhook
+  # La URL cambia cada vez que se reinicia el túnel.
+  # ------------------------------------------------------------------
+  tunel:
+    image: cloudflare/cloudflared:latest
+    container_name: sd-tunel
+    profiles: ["meta"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://bot:3001
+    depends_on:
+      - bot
 
   # ------------------------------------------------------------------
   # Evolution API REAL (opcional). Solo arranca con:
